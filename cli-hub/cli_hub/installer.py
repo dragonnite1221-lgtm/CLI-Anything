@@ -1,6 +1,7 @@
 """Install, uninstall, and manage CLIs — dispatches to pip or npm based on source."""
 
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -47,16 +48,29 @@ _UV_INSTALL_HINT = (
 
 
 _SHELL_METACHARACTERS = ("|", "&&", "||", ";", "$(", "`")
+_ALLOW_SHELL_ENV = "CLI_HUB_ALLOW_SHELL_COMMANDS"
 
 
 def _run_command(cmd):
     """Run a command string.
 
-    Uses shell=True when the command contains shell operators (pipes, &&, etc.)
-    so that script-type installs like ``curl … | bash`` work correctly.
-    Commands come from the trusted registry, not from user input.
+    Simple commands run without a shell. Commands containing shell operators
+    such as pipes or command substitutions are blocked by default because the
+    remote registry is an execution trust boundary. Operators are allowed only
+    when the caller explicitly opts in with CLI_HUB_ALLOW_SHELL_COMMANDS=1.
     """
     use_shell = any(c in cmd for c in _SHELL_METACHARACTERS)
+    if use_shell and os.environ.get(_ALLOW_SHELL_ENV) != "1":
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=2,
+            stdout="",
+            stderr=(
+                "Command contains shell operators and was not executed. "
+                f"Set {_ALLOW_SHELL_ENV}=1 only after reviewing the registry "
+                "entry and install command."
+            ),
+        )
     try:
         return subprocess.run(
             cmd if use_shell else shlex.split(cmd),

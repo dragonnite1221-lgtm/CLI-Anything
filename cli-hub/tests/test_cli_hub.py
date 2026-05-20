@@ -722,10 +722,20 @@ class TestScriptStrategy:
     # ── _run_command shell detection ───────────────────────────────────
 
     @patch("cli_hub.installer.subprocess.run")
-    def test_run_command_uses_shell_true_for_pipe(self, mock_run):
-        """Pipe character triggers shell=True so bash can interpret it."""
+    def test_run_command_blocks_pipe_without_shell_opt_in(self, mock_run):
+        """Pipe commands are registry trust-boundary commands and are blocked by default."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        _run_command("curl -s https://jimeng.jianying.com/cli | bash")
+        result = _run_command("curl -s https://jimeng.jianying.com/cli | bash")
+        mock_run.assert_not_called()
+        assert result.returncode == 2
+        assert "CLI_HUB_ALLOW_SHELL_COMMANDS" in result.stderr
+
+    @patch("cli_hub.installer.subprocess.run")
+    def test_run_command_uses_shell_true_for_pipe_with_explicit_opt_in(self, mock_run):
+        """Reviewed pipe commands can still run when shell execution is explicitly enabled."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        with patch.dict(os.environ, {"CLI_HUB_ALLOW_SHELL_COMMANDS": "1"}):
+            _run_command("curl -s https://jimeng.jianying.com/cli | bash")
         mock_run.assert_called_once()
         _, kwargs = mock_run.call_args
         assert kwargs.get("shell") is True
@@ -744,9 +754,10 @@ class TestScriptStrategy:
 
     @patch("cli_hub.installer.subprocess.run")
     def test_run_command_uses_shell_true_for_and_operator(self, mock_run):
-        """&& operator also triggers shell=True."""
+        """&& operator uses shell=True only after explicit shell opt-in."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        _run_command("curl -O https://example.com/install.sh && bash install.sh")
+        with patch.dict(os.environ, {"CLI_HUB_ALLOW_SHELL_COMMANDS": "1"}):
+            _run_command("curl -O https://example.com/install.sh && bash install.sh")
         _, kwargs = mock_run.call_args
         assert kwargs.get("shell") is True
 
@@ -755,12 +766,27 @@ class TestScriptStrategy:
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
     @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
-    def test_install_jimeng_success(self, mock_get_cli, mock_run):
-        """install_cli('jimeng') succeeds and invokes the pipe command via shell."""
+    def test_install_jimeng_blocked_without_shell_opt_in(self, mock_get_cli, mock_run):
+        """install_cli('jimeng') blocks its curl|bash command by default."""
         mock_get_cli.return_value = JIMENG_CLI
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         success, msg = install_cli("jimeng")
+
+        assert not success
+        assert "not executed" in msg
+        mock_run.assert_not_called()
+
+    @patch("cli_hub.installer.subprocess.run")
+    @patch("cli_hub.installer.get_cli")
+    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
+    def test_install_jimeng_success_with_shell_opt_in(self, mock_get_cli, mock_run):
+        """install_cli('jimeng') can run reviewed pipe commands with explicit opt-in."""
+        mock_get_cli.return_value = JIMENG_CLI
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        with patch.dict(os.environ, {"CLI_HUB_ALLOW_SHELL_COMMANDS": "1"}):
+            success, msg = install_cli("jimeng")
 
         assert success, f"Expected success but got: {msg}"
         assert "Jimeng" in msg
@@ -780,7 +806,8 @@ class TestScriptStrategy:
             returncode=1, stdout="", stderr="curl: (6) Could not resolve host"
         )
 
-        success, msg = install_cli("jimeng")
+        with patch.dict(os.environ, {"CLI_HUB_ALLOW_SHELL_COMMANDS": "1"}):
+            success, msg = install_cli("jimeng")
 
         assert not success
         assert "failed" in msg.lower()
@@ -806,7 +833,8 @@ class TestScriptStrategy:
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("cli_hub.installer.INSTALLED_FILE", installed_file):
-            success, _ = install_cli("jimeng")
+            with patch.dict(os.environ, {"CLI_HUB_ALLOW_SHELL_COMMANDS": "1"}):
+                success, _ = install_cli("jimeng")
             assert success
             data = json.loads(installed_file.read_text())
             assert "jimeng" in data

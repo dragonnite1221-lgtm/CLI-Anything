@@ -124,7 +124,8 @@ class FileTransformBackend(Backend):
     def _xml_set_attr(self, p: dict) -> dict:
         """Set an XML element attribute matched by XPath."""
         from xml.etree import ElementTree as ET
-        tree = ET.parse(p["input_file"])
+        from defusedxml.ElementTree import parse as _defused_parse
+        tree = _defused_parse(p["input_file"])
         root = tree.getroot()
         elements = root.findall(p["xpath"])
         if not elements:
@@ -137,7 +138,8 @@ class FileTransformBackend(Backend):
     def _xml_get_attr(self, p: dict) -> dict:
         """Get an XML element attribute matched by XPath."""
         from xml.etree import ElementTree as ET
-        tree = ET.parse(p["input_file"])
+        from defusedxml.ElementTree import parse as _defused_parse
+        tree = _defused_parse(p["input_file"])
         root = tree.getroot()
         elements = root.findall(p["xpath"])
         values = [el.get(p["attr"]) for el in elements]

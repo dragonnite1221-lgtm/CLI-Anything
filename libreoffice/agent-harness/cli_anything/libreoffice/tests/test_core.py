@@ -9,6 +9,7 @@ import sys
 import tempfile
 import shutil
 import zipfile
+from pathlib import Path
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -819,3 +820,158 @@ class TestSession:
         assert len(sess.get_project()["content"]) == 1
         sess.undo()
         assert len(sess.get_project()["content"]) == 0
+
+
+# ── LibreOffice backend (subprocess-mocked) ────────────────────────
+
+from unittest.mock import patch, MagicMock
+import subprocess as _subprocess
+from cli_anything.libreoffice.utils import lo_backend
+
+
+def _make_completed(returncode=0, stderr="", stdout=""):
+    """Build a subprocess.CompletedProcess for monkeypatched runs."""
+    return _subprocess.CompletedProcess(
+        args=[], returncode=returncode, stdout=stdout, stderr=stderr,
+    )
+
+
+class TestBackend:
+    def test_conservative_flags_present(self, monkeypatch, tmp_path):
+        """Direct headless invocation includes the full conservative flag set."""
+        monkeypatch.setattr(lo_backend, "find_libreoffice",
+                            lambda: "/Applications/LibreOffice.app/Contents/MacOS/soffice")
+        monkeypatch.setattr(lo_backend.sys, "platform", "linux")
+
+        input_file = tmp_path / "doc.odt"
+        input_file.write_bytes(b"fake")
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+
+        captured = {}
+
+        def fake_run(cmd, **kwargs):
+            captured["cmd"] = cmd
+            # Simulate the output file being produced
+            base = os.path.splitext(os.path.basename(cmd[-1]))[0]
+            out_path = os.path.join(kwargs.get("env", {}).get("OUTDIR", str(out_dir)),
+                                    f"{base}.pdf")
+            # The real cmd has --outdir <dir> as positional args; pluck from cmd
+            outdir_idx = cmd.index("--outdir") + 1
+            out_path = os.path.join(cmd[outdir_idx], f"{base}.pdf")
+            Path(out_path).write_bytes(b"%PDF-")
+            return _make_completed(returncode=0)
+
+        monkeypatch.setattr(lo_backend.subprocess, "run", fake_run)
+
+        result = lo_backend.convert(str(input_file), "pdf", output_dir=str(out_dir))
+        assert result == str((out_dir / "doc.pdf").resolve())
+        cmd = captured["cmd"]
+        for flag in ("--headless", "--nologo", "--nodefault",
+                     "--norestore", "--nolockcheck", "--nofirststartwizard"):
+            assert flag in cmd, f"missing flag {flag} in cmd: {cmd}"
+
+    def test_macos_app_bundle_resolution(self):
+        with patch.object(lo_backend.sys, "platform", "darwin"):
+            bundle = lo_backend._macos_app_bundle(
+                "/Applications/LibreOffice.app/Contents/MacOS/soffice")
+            assert bundle == "/Applications/LibreOffice.app"
+
+    def test_macos_app_bundle_returns_none_on_linux(self):
+        with patch.object(lo_backend.sys, "platform", "linux"):
+            assert lo_backend._macos_app_bundle(
+                "/Applications/LibreOffice.app/Contents/MacOS/soffice") is None
+
+    def test_looks_like_macos_abort_signal(self):
+        assert lo_backend._looks_like_macos_abort(_make_completed(returncode=-6))
+        assert not lo_backend._looks_like_macos_abort(_make_completed(returncode=0))
+
+    def test_looks_like_macos_abort_stderr_text(self):
+        assert lo_backend._looks_like_macos_abort(
+            _make_completed(returncode=1, stderr="something Trace/BPT trap: 5"))
+        assert lo_backend._looks_like_macos_abort(
+            _make_completed(returncode=1, stderr="Abort trap: 6"))
+        assert not lo_backend._looks_like_macos_abort(
+            _make_completed(returncode=1, stderr="some other failure"))
+
+    def test_macos_fallback_invoked_on_abort(self, monkeypatch, tmp_path):
+        """On macOS, when direct soffice aborts, LaunchServices is retried."""
+        monkeypatch.setattr(lo_backend, "find_libreoffice",
+                            lambda: "/Applications/LibreOffice.app/Contents/MacOS/soffice")
+        monkeypatch.setattr(lo_backend.sys, "platform", "darwin")
+
+        input_file = tmp_path / "doc.odt"
+        input_file.write_bytes(b"fake")
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            if len(calls) == 1:
+                # Direct soffice invocation: simulate SIGABRT
+                return _make_completed(returncode=-6, stderr="Trace/BPT trap: 5")
+            # LaunchServices retry: write the output and return success
+            outdir_idx = cmd.index("--outdir") + 1
+            out_path = os.path.join(cmd[outdir_idx], "doc.pdf")
+            Path(out_path).write_bytes(b"%PDF-")
+            return _make_completed(returncode=0)
+
+        monkeypatch.setattr(lo_backend.subprocess, "run", fake_run)
+
+        result = lo_backend.convert(str(input_file), "pdf", output_dir=str(out_dir))
+        assert result == str((out_dir / "doc.pdf").resolve())
+        assert len(calls) == 2
+        # Second call must be the LaunchServices `open -W -n -a <bundle> --args`
+        assert calls[1][0] == "open"
+        assert "-W" in calls[1] and "-n" in calls[1]
+        assert "/Applications/LibreOffice.app" in calls[1]
+        assert "--args" in calls[1]
+
+    def test_no_fallback_on_linux(self, monkeypatch, tmp_path):
+        """Linux/Windows: direct soffice failure is surfaced without `open`."""
+        monkeypatch.setattr(lo_backend, "find_libreoffice", lambda: "/usr/bin/soffice")
+        monkeypatch.setattr(lo_backend.sys, "platform", "linux")
+
+        input_file = tmp_path / "doc.odt"
+        input_file.write_bytes(b"fake")
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+
+        calls = []
+
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd)
+            return _make_completed(returncode=1, stderr="some failure")
+
+        monkeypatch.setattr(lo_backend.subprocess, "run", fake_run)
+
+        with pytest.raises(RuntimeError, match="exit 1"):
+            lo_backend.convert(str(input_file), "pdf", output_dir=str(out_dir))
+        assert len(calls) == 1
+        assert calls[0][0] == "/usr/bin/soffice"
+
+    def test_macos_double_failure_raises_helpful_error(self, monkeypatch, tmp_path):
+        """When both direct and LaunchServices paths fail on macOS, the error
+        mentions the upstream bug + manual workarounds."""
+        monkeypatch.setattr(lo_backend, "find_libreoffice",
+                            lambda: "/Applications/LibreOffice.app/Contents/MacOS/soffice")
+        monkeypatch.setattr(lo_backend.sys, "platform", "darwin")
+
+        input_file = tmp_path / "doc.odt"
+        input_file.write_bytes(b"fake")
+        out_dir = tmp_path / "out"
+        out_dir.mkdir()
+
+        # Both invocations report failure and produce no output file
+        monkeypatch.setattr(lo_backend.subprocess, "run",
+                            lambda cmd, **kw: _make_completed(returncode=-6,
+                                                              stderr="Trace/BPT trap: 5"))
+
+        with pytest.raises(RuntimeError) as exc:
+            lo_backend.convert(str(input_file), "pdf", output_dir=str(out_dir))
+        msg = str(exc.value)
+        assert "bugs.documentfoundation.org/show_bug.cgi?id=169711" in msg
+        assert "open -W -n -a" in msg
+        assert "soffice" in msg

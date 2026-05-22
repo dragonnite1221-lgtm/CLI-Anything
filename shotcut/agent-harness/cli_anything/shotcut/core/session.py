@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Optional
 import xml.etree.ElementTree as ET
+from defusedxml.ElementTree import fromstring as _defused_fromstring
 
 from ..utils import mlt_xml
 
@@ -113,7 +114,7 @@ class Session:
         self._redo_stack.append(self._snapshot())
         prev = self._undo_stack.pop()
         mlt_xml._clear_parent_map()
-        self.root = ET.fromstring(prev)
+        self.root = _defused_fromstring(prev)
         mlt_xml._register_tree(self.root)
         self._resolve_refs()
         self._modified = bool(self._undo_stack)
@@ -126,7 +127,7 @@ class Session:
         self._undo_stack.append(self._snapshot())
         nxt = self._redo_stack.pop()
         mlt_xml._clear_parent_map()
-        self.root = ET.fromstring(nxt)
+        self.root = _defused_fromstring(nxt)
         mlt_xml._register_tree(self.root)
         self._resolve_refs()
         self._modified = True

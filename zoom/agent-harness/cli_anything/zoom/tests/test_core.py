@@ -374,6 +374,42 @@ class TestRecordingCommands:
         assert result.exit_code == 0
         assert "MP4" in result.output
 
+    def test_download_recording_uses_direct_url(self, tmp_path):
+        """recording download should request the provided download URL."""
+        from cli_anything.zoom.core.recordings import download_recording
+
+        mock_response = MagicMock()
+        mock_response.headers = {"content-length": "10"}
+        mock_response.iter_content.return_value = [b"hello", b"world"]
+        mock_response.raise_for_status = MagicMock()
+
+        output_path = tmp_path / "recording.mp4"
+        download_url = "https://zoom.us/rec/download/abc"
+
+        with patch(
+            "cli_anything.zoom.core.recordings.api_request",
+            side_effect=AssertionError("api_request should not be used"),
+            create=True,
+        ) as mock_api_request, \
+             patch(
+                 "cli_anything.zoom.utils.zoom_backend._get_valid_token",
+                 return_value="access-token",
+             ), \
+             patch("requests.get", return_value=mock_response) as mock_get:
+            result = download_recording(download_url, str(output_path))
+
+        mock_api_request.assert_not_called()
+        mock_get.assert_called_once_with(
+            download_url,
+            headers={"Authorization": "Bearer access-token"},
+            stream=True,
+            timeout=300,
+        )
+        assert output_path.read_bytes() == b"helloworld"
+        assert result["status"] == "downloaded"
+        assert result["path"] == str(output_path.resolve())
+        assert result["size_bytes"] == 10
+
 
 # ── JSON Output Tests ───────────────────────────────────────────
 

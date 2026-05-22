@@ -4,6 +4,7 @@ import os
 import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
+from defusedxml.ElementTree import fromstring as _defused_fromstring
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -125,7 +126,7 @@ def import_odf(
         return project
 
     try:
-        root = ET.fromstring(content_xml)
+        root = _defused_fromstring(content_xml)
     except ET.ParseError as e:
         raise ValueError(f"Invalid ODF content.xml in: {path}") from e
     if inferred_type == "writer":
@@ -157,7 +158,7 @@ def _apply_metadata(project: Dict[str, Any], meta_xml: str, source_path: str) ->
         return
 
     try:
-        root = ET.fromstring(meta_xml)
+        root = _defused_fromstring(meta_xml)
     except ET.ParseError as e:
         raise ValueError(f"Invalid ODF meta.xml in: {source_path}") from e
 

@@ -38,6 +38,7 @@ setup(
         "click>=8.0.0",
         "prompt-toolkit>=3.0.0",
         "PyYAML>=6.0",
+        "defusedxml>=0.7.1",
     ],
     extras_require={
         "dev": [

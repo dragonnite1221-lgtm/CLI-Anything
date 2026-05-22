@@ -7,6 +7,7 @@ xml.etree.ElementTree from the Python standard library.
 import copy
 import uuid
 import xml.etree.ElementTree as ET
+from defusedxml.ElementTree import parse as _defused_parse
 from typing import Optional
 
 # Global parent mapping because ET.Element has no getparent().
@@ -51,7 +52,7 @@ def new_id(prefix: str = "producer") -> str:
 def parse_mlt(filepath: str) -> ET.Element:
     """Parse an MLT XML file and return the root element."""
     _clear_parent_map()
-    tree = ET.parse(filepath)
+    tree = _defused_parse(filepath)
     root = tree.getroot()
     _register_tree(root)
     return root

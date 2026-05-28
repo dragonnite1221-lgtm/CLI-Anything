@@ -36,6 +36,7 @@ def render(session: Session, output_path: str,
            height: Optional[int] = None,
            transparent: bool = False,
            crop: bool = False,
+           border: int = 0,
            overwrite: bool = False) -> dict:
     """Export the current project to a file.
 
@@ -99,6 +100,7 @@ def render(session: Session, output_path: str,
             height=height,
             transparent=transparent,
             crop=crop,
+            border=border,
             overwrite=True,  # We already checked above
         )
         result["action"] = "export"
@@ -108,12 +110,12 @@ def render(session: Session, output_path: str,
 
 
 def render_or_save(session: Session, output_path: str,
-                   fmt: str = "png", **kwargs) -> dict:
+                   fmt: str = "png", border: int = 0, **kwargs) -> dict:
     """Export with fallback: if draw.io CLI is not available, save the .drawio
     file and provide instructions for manual export.
     """
     try:
-        return render(session, output_path, fmt, **kwargs)
+        return render(session, output_path, fmt, border=border, **kwargs)
     except RuntimeError as e:
         if "not installed" not in str(e):
             raise

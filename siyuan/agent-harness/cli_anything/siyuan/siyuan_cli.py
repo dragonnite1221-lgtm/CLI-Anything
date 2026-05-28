@@ -435,9 +435,14 @@ def notebook_rename(ctx: SiYuanContext, notebook_id: str, name: str):
 def notebook_open(ctx: SiYuanContext, notebook_id: str):
     """Open a notebook."""
     ctx.client.open_notebook(notebook_id)
-    ctx.session.update(current_notebook_id=notebook_id)
+    name = notebook_id
+    for nb in ctx.client.list_notebooks():
+        if nb.get("id") == notebook_id:
+            name = nb.get("name", notebook_id)
+            break
+    ctx.session.update(current_notebook_id=notebook_id, current_notebook_name=name)
     ctx.session.flush()
-    click.echo(f"Opened notebook: {notebook_id}")
+    click.echo(f"Opened notebook: {name} ({notebook_id})")
 
 
 # ── Document commands ──────────────────────────────────────────────────
@@ -707,13 +712,25 @@ def tag():
     """Manage tags (标签)."""
 
 
+def _print_tags(tags: list[dict], indent: int = 0) -> None:
+    """Recursively print tags with hierarchical indentation."""
+    pad = "  " * indent
+    for t in tags:
+        if indent == 0:
+            click.echo(f"{t.get('name', ''):<30} ({t.get('count', 0)})")
+        else:
+            click.echo(f"{pad}{t.get('name', ''):<{30 - 2 * indent}} ({t.get('count', 0)})")
+        children = t.get("children")
+        if children:
+            _print_tags(children, indent + 1)
+
+
 @tag.command("list")
 @click.pass_obj
 def tag_list(ctx: SiYuanContext):
-    """List all tags."""
+    """List all tags (including nested tags)."""
     tags = ctx.client.get_tags()
     if ctx.json_output:
         click.echo(json.dumps(tags, ensure_ascii=False))
     else:
-        for t in tags:
-            click.echo(f"{t.get('name', ''):<30} ({t.get('count', 0)})")
+        _print_tags(tags)

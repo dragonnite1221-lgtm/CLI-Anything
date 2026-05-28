@@ -700,7 +700,21 @@ JIMENG_CLI = {
     "_source": "public",
     "install_strategy": "command",
     "package_manager": "script",
+    "requires_shell": True,
     "install_cmd": "curl -s https://jimeng.jianying.com/cli | bash",
+}
+
+
+SKETCH_CLI = {
+    "name": "sketch",
+    "display_name": "Sketch",
+    "version": "1.0.0",
+    "description": "Generate Sketch design files",
+    "entry_point": "sketch-cli",
+    "_source": "harness",
+    "install_strategy": "command",
+    "package_manager": "npm",
+    "install_cmd": "npm install -g ./sketch/agent-harness",
 }
 
 
@@ -719,23 +733,27 @@ class TestScriptStrategy:
         del cli["install_strategy"]
         assert _install_strategy(cli) == "command"
 
+    def test_strategy_sketch_uses_safe_command_shape(self):
+        """Sketch is a harness entry, but its npm install command is not pip."""
+        assert _install_strategy(SKETCH_CLI) == "command"
+
     # ── _run_command shell detection ───────────────────────────────────
 
     @patch("cli_hub.installer.subprocess.run")
     def test_run_command_blocks_pipe_without_shell_opt_in(self, mock_run):
-        """Pipe commands are registry trust-boundary commands and are blocked by default."""
+        """Pipe commands without per-entry trust are blocked by default."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         result = _run_command("curl -s https://jimeng.jianying.com/cli | bash")
         mock_run.assert_not_called()
         assert result.returncode == 2
+        assert "requires_shell=true" in result.stderr
         assert "CLI_HUB_ALLOW_SHELL_COMMANDS" in result.stderr
 
     @patch("cli_hub.installer.subprocess.run")
-    def test_run_command_uses_shell_true_for_pipe_with_explicit_opt_in(self, mock_run):
-        """Reviewed pipe commands can still run when shell execution is explicitly enabled."""
+    def test_run_command_uses_shell_true_for_pipe_with_per_entry_trust(self, mock_run):
+        """Reviewed pipe commands can run when the registry entry opted in."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        with patch.dict(os.environ, {"CLI_HUB_ALLOW_SHELL_COMMANDS": "1"}):
-            _run_command("curl -s https://jimeng.jianying.com/cli | bash")
+        _run_command("curl -s https://jimeng.jianying.com/cli | bash", allow_shell=True)
         mock_run.assert_called_once()
         _, kwargs = mock_run.call_args
         assert kwargs.get("shell") is True
@@ -743,6 +761,15 @@ class TestScriptStrategy:
         args = mock_run.call_args[0][0]
         assert isinstance(args, str)
         assert "| bash" in args
+
+    @patch("cli_hub.installer.subprocess.run")
+    def test_run_command_env_override_allows_unreviewed_shell_command(self, mock_run):
+        """Power users can still override after locally reviewing the command."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        with patch.dict(os.environ, {"CLI_HUB_ALLOW_SHELL_COMMANDS": "1"}):
+            _run_command("curl -s https://jimeng.jianying.com/cli | bash")
+        _, kwargs = mock_run.call_args
+        assert kwargs.get("shell") is True
 
     @patch("cli_hub.installer.subprocess.run")
     def test_run_command_uses_shell_false_for_simple_command(self, mock_run):
@@ -753,11 +780,39 @@ class TestScriptStrategy:
         assert kwargs.get("shell") is False or kwargs.get("shell") is None
 
     @patch("cli_hub.installer.subprocess.run")
-    def test_run_command_uses_shell_true_for_and_operator(self, mock_run):
-        """&& operator uses shell=True only after explicit shell opt-in."""
+    def test_run_command_uses_shell_false_for_quoted_operator_literal(self, mock_run):
+        """Quoted metacharacters are arguments, not shell operators."""
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        with patch.dict(os.environ, {"CLI_HUB_ALLOW_SHELL_COMMANDS": "1"}):
-            _run_command("curl -O https://example.com/install.sh && bash install.sh")
+        _run_command('curl "https://foo.example/?q=a|b" -o out')
+        args = mock_run.call_args[0][0]
+        _, kwargs = mock_run.call_args
+        assert args == ["curl", "https://foo.example/?q=a|b", "-o", "out"]
+        assert kwargs.get("shell") is False or kwargs.get("shell") is None
+
+    @patch("cli_hub.installer.subprocess.run")
+    def test_run_command_uses_shell_false_for_sketch_safe_install(self, mock_run):
+        """The Sketch registry command no longer needs shell execution."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        _run_command(SKETCH_CLI["install_cmd"])
+        args = mock_run.call_args[0][0]
+        _, kwargs = mock_run.call_args
+        assert args == ["npm", "install", "-g", "./sketch/agent-harness"]
+        assert kwargs.get("shell") is False or kwargs.get("shell") is None
+
+    @patch("cli_hub.installer.subprocess.run")
+    def test_run_command_blocks_redirection_without_shell_trust(self, mock_run):
+        """Redirection is shell syntax and needs the same trust gate as pipes."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        result = _run_command("echo hi > out")
+        assert result.returncode == 2
+        assert "requires_shell=true" in result.stderr
+        mock_run.assert_not_called()
+
+    @patch("cli_hub.installer.subprocess.run")
+    def test_run_command_uses_shell_true_for_and_operator(self, mock_run):
+        """&& operator uses shell=True only after per-entry shell trust."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        _run_command("curl -O https://example.com/install.sh && bash install.sh", allow_shell=True)
         _, kwargs = mock_run.call_args
         assert kwargs.get("shell") is True
 
@@ -766,9 +821,9 @@ class TestScriptStrategy:
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
     @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
-    def test_install_jimeng_blocked_without_shell_opt_in(self, mock_get_cli, mock_run):
-        """install_cli('jimeng') blocks its curl|bash command by default."""
-        mock_get_cli.return_value = JIMENG_CLI
+    def test_install_shell_command_blocked_without_requires_shell(self, mock_get_cli, mock_run):
+        """Registry shell commands must declare per-entry shell trust."""
+        mock_get_cli.return_value = {k: v for k, v in JIMENG_CLI.items() if k != "requires_shell"}
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         success, msg = install_cli("jimeng")
@@ -780,13 +835,12 @@ class TestScriptStrategy:
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
     @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
-    def test_install_jimeng_success_with_shell_opt_in(self, mock_get_cli, mock_run):
-        """install_cli('jimeng') can run reviewed pipe commands with explicit opt-in."""
+    def test_install_jimeng_success_with_requires_shell(self, mock_get_cli, mock_run):
+        """install_cli('jimeng') can run because the reviewed entry opted in."""
         mock_get_cli.return_value = JIMENG_CLI
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
-        with patch.dict(os.environ, {"CLI_HUB_ALLOW_SHELL_COMMANDS": "1"}):
-            success, msg = install_cli("jimeng")
+        success, msg = install_cli("jimeng")
 
         assert success, f"Expected success but got: {msg}"
         assert "Jimeng" in msg
@@ -799,6 +853,23 @@ class TestScriptStrategy:
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
     @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
+    def test_install_sketch_uses_command_without_shell(self, mock_get_cli, mock_run):
+        """install_cli('sketch') uses the reviewed npm command without shell=True."""
+        mock_get_cli.return_value = SKETCH_CLI
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+
+        success, msg = install_cli("sketch")
+
+        assert success, f"Expected success but got: {msg}"
+        assert "Sketch" in msg
+        args = mock_run.call_args[0][0]
+        _, kwargs = mock_run.call_args
+        assert args == ["npm", "install", "-g", "./sketch/agent-harness"]
+        assert kwargs.get("shell") is False or kwargs.get("shell") is None
+
+    @patch("cli_hub.installer.subprocess.run")
+    @patch("cli_hub.installer.get_cli")
+    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     def test_install_jimeng_failure_propagated(self, mock_get_cli, mock_run):
         """A non-zero exit from the curl|bash script surfaces as failure."""
         mock_get_cli.return_value = JIMENG_CLI
@@ -806,8 +877,7 @@ class TestScriptStrategy:
             returncode=1, stdout="", stderr="curl: (6) Could not resolve host"
         )
 
-        with patch.dict(os.environ, {"CLI_HUB_ALLOW_SHELL_COMMANDS": "1"}):
-            success, msg = install_cli("jimeng")
+        success, msg = install_cli("jimeng")
 
         assert not success
         assert "failed" in msg.lower()
@@ -833,13 +903,13 @@ class TestScriptStrategy:
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("cli_hub.installer.INSTALLED_FILE", installed_file):
-            with patch.dict(os.environ, {"CLI_HUB_ALLOW_SHELL_COMMANDS": "1"}):
-                success, _ = install_cli("jimeng")
+            success, _ = install_cli("jimeng")
             assert success
             data = json.loads(installed_file.read_text())
             assert "jimeng" in data
             assert data["jimeng"]["strategy"] == "command"
             assert data["jimeng"]["package_manager"] == "script"
+            assert data["jimeng"]["requires_shell"] is True
 
 # ─── Analytics tests ──────────────────────────────────────────────────
 

@@ -47,36 +47,80 @@ _UV_INSTALL_HINT = (
 )
 
 
-_SHELL_METACHARACTERS = ("|", "&&", "||", ";", "$(", "`")
 _ALLOW_SHELL_ENV = "CLI_HUB_ALLOW_SHELL_COMMANDS"
 
 
-def _run_command(cmd):
+def _contains_shell_operator(cmd):
+    """Return True when cmd contains shell syntax outside literal quoting."""
+    quote = None
+    escaped = False
+    i = 0
+    while i < len(cmd):
+        ch = cmd[i]
+        if escaped:
+            escaped = False
+            i += 1
+            continue
+        if ch == "\\":
+            escaped = True
+            i += 1
+            continue
+        if quote:
+            if ch == quote:
+                quote = None
+            elif quote == '"' and (ch == "`" or (ch == "$" and i + 1 < len(cmd) and cmd[i + 1] == "(")):
+                return True
+            i += 1
+            continue
+        if ch in {"'", '"'}:
+            quote = ch
+        elif ch in {"|", "&", ";", "<", ">"} or ch in {"\n", "\r"}:
+            return True
+        elif ch == "`" or (ch == "$" and i + 1 < len(cmd) and cmd[i + 1] == "("):
+            return True
+        i += 1
+    return False
+
+
+def _allows_shell(cli):
+    return bool(cli and cli.get("requires_shell") is True)
+
+
+def _run_command(cmd, *, allow_shell=False):
     """Run a command string.
 
     Simple commands run without a shell. Commands containing shell operators
-    such as pipes or command substitutions are blocked by default because the
-    remote registry is an execution trust boundary. Operators are allowed only
-    when the caller explicitly opts in with CLI_HUB_ALLOW_SHELL_COMMANDS=1.
+    such as pipes, redirections, or command substitutions require a reviewed
+    registry entry with ``requires_shell: true``. CLI_HUB_ALLOW_SHELL_COMMANDS=1
+    remains a hard override for callers that have reviewed the command locally.
     """
-    use_shell = any(c in cmd for c in _SHELL_METACHARACTERS)
-    if use_shell and os.environ.get(_ALLOW_SHELL_ENV) != "1":
+    use_shell = _contains_shell_operator(cmd)
+    if use_shell and not allow_shell and os.environ.get(_ALLOW_SHELL_ENV) != "1":
         return subprocess.CompletedProcess(
             args=cmd,
             returncode=2,
             stdout="",
             stderr=(
                 "Command contains shell operators and was not executed. "
-                f"Set {_ALLOW_SHELL_ENV}=1 only after reviewing the registry "
-                "entry and install command."
+                "Registry entries that intentionally need shell syntax must "
+                f"set requires_shell=true. Set {_ALLOW_SHELL_ENV}=1 only after "
+                "reviewing the registry entry and install command."
             ),
         )
     try:
+        argv = cmd if use_shell else shlex.split(cmd)
         return subprocess.run(
-            cmd if use_shell else shlex.split(cmd),
+            argv,
             capture_output=True,
             text=True,
             shell=use_shell,
+        )
+    except ValueError as exc:
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=2,
+            stdout="",
+            stderr=f"Invalid command syntax: {exc}",
         )
     except FileNotFoundError as exc:
         missing = exc.filename or shlex.split(cmd)[0]
@@ -119,7 +163,7 @@ def _generic_install(cli):
     install_cmd = cli.get("install_cmd")
     if not install_cmd:
         return False, f"No install command is defined for {cli['display_name']}."
-    result = _run_command(install_cmd)
+    result = _run_command(install_cmd, allow_shell=_allows_shell(cli))
     if result.returncode == 0:
         return True, f"Installed {cli['display_name']} ({cli['entry_point']})"
     return False, f"Install failed:\n{result.stderr or result.stdout}"
@@ -130,7 +174,7 @@ def _generic_uninstall(cli):
     if not uninstall_cmd:
         note = cli.get("uninstall_notes") or f"No uninstall command is defined for {cli['display_name']}."
         return False, note
-    result = _run_command(uninstall_cmd)
+    result = _run_command(uninstall_cmd, allow_shell=_allows_shell(cli))
     if result.returncode == 0:
         return True, f"Uninstalled {cli['display_name']}"
     return False, f"Uninstall failed:\n{result.stderr or result.stdout}"
@@ -141,7 +185,7 @@ def _generic_update(cli):
     if not update_cmd:
         note = cli.get("update_notes") or f"No update command is defined for {cli['display_name']}."
         return False, note
-    result = _run_command(update_cmd)
+    result = _run_command(update_cmd, allow_shell=_allows_shell(cli))
     if result.returncode == 0:
         return True, f"Updated {cli['display_name']}"
     return False, f"Update failed:\n{result.stderr or result.stdout}"
@@ -217,7 +261,7 @@ def _pip_update(cli):
 def _uv_install(cli):
     if _find_uv() is None:
         return False, _UV_INSTALL_HINT
-    result = _run_command(cli["install_cmd"])
+    result = _run_command(cli["install_cmd"], allow_shell=_allows_shell(cli))
     if result.returncode == 0:
         return True, f"Installed {cli['display_name']} ({cli['entry_point']})"
     return False, f"uv install failed:\n{result.stderr or result.stdout}"
@@ -229,7 +273,7 @@ def _uv_uninstall(cli):
     uninstall_cmd = cli.get("uninstall_cmd")
     if not uninstall_cmd:
         return False, f"No uninstall command is defined for {cli['display_name']}."
-    result = _run_command(uninstall_cmd)
+    result = _run_command(uninstall_cmd, allow_shell=_allows_shell(cli))
     if result.returncode == 0:
         return True, f"Uninstalled {cli['display_name']}"
     return False, f"uv uninstall failed:\n{result.stderr or result.stdout}"
@@ -241,7 +285,7 @@ def _uv_update(cli):
     update_cmd = cli.get("update_cmd")
     if not update_cmd:
         return False, f"No update command is defined for {cli['display_name']}."
-    result = _run_command(update_cmd)
+    result = _run_command(update_cmd, allow_shell=_allows_shell(cli))
     if result.returncode == 0:
         return True, f"Updated {cli['display_name']}"
     return False, f"uv update failed:\n{result.stderr or result.stdout}"
@@ -326,6 +370,8 @@ def _installed_entry(cli, source, strategy):
         entry["uninstall_cmd"] = cli["uninstall_cmd"]
     if cli.get("update_cmd"):
         entry["update_cmd"] = cli["update_cmd"]
+    if cli.get("requires_shell") is True:
+        entry["requires_shell"] = True
     return entry
 
 

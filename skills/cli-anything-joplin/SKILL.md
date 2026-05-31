@@ -12,13 +12,14 @@ the real `joplin` terminal binary.
 ## Requirements
 
 - Python 3.10+
-- Joplin terminal binary available as `joplin` (`npm install -g joplin`)
+- Joplin terminal binary available as `joplin`
 - Optional: pass `--profile` to target a specific Joplin profile
 
 ## Install
 
 ```bash
-pip install git+https://github.com/HKUDS/CLI-Anything.git#subdirectory=joplin/agent-harness
+cd joplin/agent-harness
+pip install -e .
 ```
 
 ## Usage
@@ -72,9 +73,7 @@ When `--json` is enabled, commands return:
 - One-shot mutating commands auto-save the project unless `--dry-run` is set.
 - REPL mode does not auto-save; run `project save` explicitly.
 - Some Joplin CLI builds gate `search` behind GUI mode; if you see
-  `"only available in GUI mode"`, treat search as best-effort and parse the
-  `error.message` in the JSON envelope to decide whether to retry inside the
-  REPL.
+  `"only available in GUI mode"`, treat search as best-effort.
 - Joplin 3.6.x can have a broken `version` command in npm global layouts; the
   harness falls back to installed package metadata for `backend version`,
   probing the symlink-resolved binary directory, the Windows-style sibling
@@ -86,15 +85,24 @@ When `--json` is enabled, commands return:
   (`config.import_file`, `e2ee.decrypt_file`). Multi-word subcommands use
   a single dot between group and subcommand.
 
-## Recommended workflow
+## Test workflow
 
-1. `project new --name my-task -o ./my-task.joplin-harness.json` to create
-   harness state.
-2. Configure backend with `--profile /path/to/joplin-profile` to isolate from
-   the user's personal Joplin install.
-3. Run mutating commands with `--json --project ./my-task.joplin-harness.json`.
-4. Use `session history` for a structured audit of what the agent did.
-5. Export with `interop export <path> --format jex` for portable backups.
+```bash
+# Quick feedback loop
+python -m pytest -q cli_anything/joplin/tests/test_core.py
+python -m pytest -q cli_anything/joplin/tests/test_full_e2e.py::TestCLISubprocess
+
+# Real backend (joplin must be in PATH)
+python -m pytest -v cli_anything/joplin/tests/test_full_e2e.py::TestBackendCommands
+python -m pytest -v cli_anything/joplin/tests/test_full_e2e.py::TestBackendWorkflows
+python -m pytest -v cli_anything/joplin/tests/test_full_e2e.py::TestBackendIntegration
+
+# Full suite
+python -m pytest -v --tb=no cli_anything/joplin/tests
+
+# Verify the installed console script entry point
+CLI_ANYTHING_FORCE_INSTALLED=1 python -m pytest -v -s cli_anything/joplin/tests/test_full_e2e.py
+```
 
 Current validation baseline (Windows + Joplin CLI 3.6.2):
 

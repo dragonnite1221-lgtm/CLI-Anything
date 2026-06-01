@@ -36,7 +36,7 @@ def load_config(config_path: str | None = None) -> SiYuanConfig:
 
     if config_file.is_file():
         try:
-            data = json.loads(config_file.read_text(encoding="utf-8"))
+            data = json.loads(config_file.read_text(encoding="utf-8-sig"))
         except (json.JSONDecodeError, OSError):
             data = None
 

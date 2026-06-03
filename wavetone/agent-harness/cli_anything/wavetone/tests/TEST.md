@@ -2,7 +2,7 @@
 
 ## Test Inventory Plan
 
-- `test_core.py`: 12 unit tests for project manifests, audio probing, session logs,
+- `test_core.py`: 13 unit tests for project manifests, audio probing, session logs,
   and backend discovery.
 - `test_full_e2e.py`: 5 E2E tests covering CLI subprocess workflows and real
   WaveTone launch smoke coverage.
@@ -22,6 +22,8 @@
 - Resolve `WAVETONE_EXE` from the environment.
 - Preserve inherited project and JSON context for REPL-style nested CLI
   invocations.
+- Return a failing exit status for launch smoke checks when the backend exits
+  early with a nonzero code.
 
 ## E2E Test Plan
 
@@ -73,7 +75,7 @@ python -m pytest cli_anything\wavetone\tests\ -v -s
 Result:
 
 ```text
-collected 17 items
+collected 18 items
 
 cli_anything/wavetone/tests/test_core.py::test_create_project_manifest PASSED
 cli_anything/wavetone/tests/test_core.py::test_rejects_unsupported_audio PASSED
@@ -87,13 +89,14 @@ cli_anything/wavetone/tests/test_core.py::test_session_event_log PASSED
 cli_anything/wavetone/tests/test_core.py::test_session_rejects_invalid_schema PASSED
 cli_anything/wavetone/tests/test_core.py::test_find_wavetone_from_env PASSED
 cli_anything/wavetone/tests/test_core.py::test_cli_preserves_inherited_project_and_json_context PASSED
+cli_anything/wavetone/tests/test_core.py::test_wavetone_launch_fails_on_early_nonzero_exit PASSED
 cli_anything/wavetone/tests/test_full_e2e.py::TestCLISubprocess::test_help PASSED
 cli_anything/wavetone/tests/test_full_e2e.py::TestCLISubprocess::test_project_audio_workflow_json PASSED
 cli_anything/wavetone/tests/test_full_e2e.py::TestCLISubprocess::test_formats_json PASSED
 cli_anything/wavetone/tests/test_full_e2e.py::TestRealWaveToneBackend::test_doctor_real_backend PASSED
 cli_anything/wavetone/tests/test_full_e2e.py::TestRealWaveToneBackend::test_launch_real_backend_with_wav PASSED
 
-17 passed in 3.43s
+18 passed in 3.19s
 ```
 
 ## Coverage Notes
@@ -101,7 +104,7 @@ cli_anything/wavetone/tests/test_full_e2e.py::TestRealWaveToneBackend::test_laun
 - Unit tests cover manifest creation, validation, persistence, labels, tempo,
   analysis settings, audio probing, malformed WAV fallback, session logs,
   session schema validation, backend discovery, ffprobe argument construction,
-  and inherited CLI project and JSON context.
+  inherited CLI project and JSON context, and failed launch smoke reporting.
 - CLI subprocess tests resolve and use the installed `cli-anything-wavetone`
   entry point.
 - Real backend coverage launches `C:\Users\Hp\Desktop\wavetone2.6.1\wavetone.exe`

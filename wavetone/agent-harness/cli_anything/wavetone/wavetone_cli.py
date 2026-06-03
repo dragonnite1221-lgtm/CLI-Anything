@@ -298,7 +298,15 @@ def wavetone_launch(ctx: click.Context, audio_path: str | None, executable: str 
         )
     except (OSError, ValueError) as exc:
         raise click.ClickException(str(exc)) from exc
-    emit({"ok": True, "launch": data}, ctx_json(ctx))
+    failed_launch = (
+        wait_seconds > 0
+        and not data.get("running_after_wait")
+        and not data.get("terminated")
+        and data.get("exit_code") not in (None, 0)
+    )
+    emit({"ok": not failed_launch, "launch": data}, ctx_json(ctx))
+    if failed_launch:
+        raise click.exceptions.Exit(int(data.get("exit_code") or 1))
 
 
 @cli.group(name="session")

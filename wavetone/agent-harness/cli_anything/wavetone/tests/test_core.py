@@ -195,3 +195,23 @@ def test_cli_preserves_inherited_project_and_json_context(tmp_path: Path) -> Non
     assert result.exit_code == 0, result.output
     data = json.loads(result.output)
     assert data["audio"]["path"] == str(wav.resolve())
+
+
+def test_wavetone_launch_fails_on_early_nonzero_exit(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_launch_wavetone(**kwargs: object) -> dict[str, object]:
+        return {
+            "backend": "wavetone.exe",
+            "executable": "C:/fake/wavetone.exe",
+            "running_after_wait": False,
+            "terminated": False,
+            "exit_code": 42,
+        }
+
+    monkeypatch.setattr(wavetone_backend, "launch_wavetone", fake_launch_wavetone)
+
+    result = CliRunner().invoke(cli, ["--json", "wavetone", "launch", "--wait", "1"])
+
+    assert result.exit_code == 42
+    data = json.loads(result.output)
+    assert data["ok"] is False
+    assert data["launch"]["exit_code"] == 42

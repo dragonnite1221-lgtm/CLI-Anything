@@ -116,6 +116,18 @@ def _stringify_command(value: Any) -> Optional[str]:
     return str(value)
 
 
+def _script_json(value: Any) -> str:
+    """Serialize JSON safely for embedding inside a script tag."""
+    return (
+        json.dumps(value, ensure_ascii=False)
+        .replace("&", "\\u0026")
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
+
+
 def _normalize_index(value: Any, fallback: int) -> int:
     if isinstance(value, bool):
         return fallback
@@ -625,15 +637,35 @@ def render_session_text(session_ref: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _artifact_href(output_dir: Path, bundle_dir: Path, artifact_path: str) -> str:
-    target = (bundle_dir / artifact_path).resolve()
+def _resolve_bundle_artifact(bundle_dir: Path, artifact_path: str) -> Optional[Path]:
+    if not isinstance(artifact_path, str) or not artifact_path.strip():
+        return None
+    if "\x00" in artifact_path:
+        return None
+    raw_path = Path(artifact_path)
+    if raw_path.is_absolute():
+        return None
+    bundle_root = bundle_dir.resolve()
+    target = (bundle_root / raw_path).resolve()
+    try:
+        target.relative_to(bundle_root)
+    except ValueError:
+        return None
+    return target
+
+
+def _artifact_href(output_dir: Path, bundle_dir: Path, artifact_path: str) -> Optional[str]:
+    target = _resolve_bundle_artifact(bundle_dir, artifact_path)
+    if target is None:
+        return None
     return os.path.relpath(target, output_dir)
 
 
 def _render_artifact_card(output_dir: Path, bundle_dir: Path, artifact: Dict[str, Any]) -> str:
     role = html.escape(artifact.get("role", "artifact"))
     label = html.escape(artifact.get("label", artifact.get("artifact_id", "artifact")))
-    path_ref = _artifact_href(output_dir, bundle_dir, artifact.get("path", ""))
+    artifact_path = str(artifact.get("path", ""))
+    path_ref = _artifact_href(output_dir, bundle_dir, artifact_path)
     media_type = artifact.get("media_type", "")
     size = artifact.get("bytes")
     meta = []
@@ -645,7 +677,13 @@ def _render_artifact_card(output_dir: Path, bundle_dir: Path, artifact: Dict[str
         meta.append(format_bytes(int(size)))
     meta_line = " · ".join(meta)
 
-    if media_type.startswith("image/"):
+    if path_ref is None:
+        body = (
+            '<div class="artifact-file">'
+            f"Unavailable artifact path: {html.escape(artifact_path)}"
+            "</div>"
+        )
+    elif media_type.startswith("image/"):
         body = f'<img src="{html.escape(path_ref)}" alt="{label}" loading="lazy">'
     elif media_type.startswith("video/"):
         body = (
@@ -715,12 +753,13 @@ def _render_trajectory_html_section(trajectory: Optional[Dict[str, Any]]) -> str
         )
         for item in items
     )
+    empty_timeline_html = '<div class="artifact-file">No step timeline entries yet.</div>'
 
     return (
         '<section class="section">'
         "<h2>Trajectory</h2>"
         f'<div class="facts">{cards_html}</div>'
-        f'<div class="trajectory-list">{items_html or "<div class=\"artifact-file\">No step timeline entries yet.</div>"}</div>'
+        f'<div class="trajectory-list">{items_html or empty_timeline_html}</div>'
         "</section>"
     )
 
@@ -1363,8 +1402,8 @@ def render_live_html(session_ref: str, output_path: str, poll_ms: int = 1500) ->
   </main>
   <script>
     const POLL_MS = {poll_ms};
-    const CURRENT_LINK = {json.dumps(session.get("current_link", "current"))};
-    const TRAJECTORY_CANDIDATES = {json.dumps(trajectory_candidate_refs)};
+    const CURRENT_LINK = {_script_json(session.get("current_link", "current"))};
+    const TRAJECTORY_CANDIDATES = {_script_json(trajectory_candidate_refs)};
 
     function escapeHtml(value) {{
       return String(value ?? "")
@@ -1381,6 +1420,22 @@ def render_live_html(session_ref: str, output_path: str, poll_ms: int = 1500) ->
         return value;
       }}
       return null;
+    }}
+
+    function safeRelativeUrlPath(value) {{
+      const text = String(value ?? "").trim();
+      if (!text || text.startsWith("/") || text.includes("\\\\") || text.includes("\\u0000")) {{
+        return null;
+      }}
+      const parts = text.split("/");
+      const encoded = [];
+      for (const part of parts) {{
+        if (!part || part === "." || part === "..") {{
+          return null;
+        }}
+        encoded.push(encodeURIComponent(part));
+      }}
+      return encoded.join("/");
     }}
 
     function commandText(value) {{
@@ -1613,8 +1668,13 @@ def render_live_html(session_ref: str, output_path: str, poll_ms: int = 1500) ->
     }}
 
     function artifactUrl(session, artifact) {{
+      const currentLink = safeRelativeUrlPath(CURRENT_LINK);
+      const artifactPath = safeRelativeUrlPath(artifact && artifact.path);
+      if (!currentLink || !artifactPath) {{
+        return null;
+      }}
       const rev = encodeURIComponent(session.updated_at || Date.now());
-      return `${{CURRENT_LINK}}/${{artifact.path}}?rev=${{rev}}`;
+      return `${{currentLink}}/${{artifactPath}}?rev=${{rev}}`;
     }}
 
     function pickArtifact(manifest, role, mediaPrefix) {{
@@ -1631,7 +1691,13 @@ def render_live_html(session_ref: str, output_path: str, poll_ms: int = 1500) ->
         meta.textContent = "No hero frame";
         return;
       }}
-      slot.innerHTML = `<img class="hero-frame" src="${{artifactUrl(session, hero)}}" alt="${{escapeHtml(hero.label || hero.artifact_id || "Hero frame")}}">`;
+      const url = artifactUrl(session, hero);
+      if (!url) {{
+        slot.innerHTML = '<div class="empty">Hero frame path is invalid.</div>';
+        meta.textContent = "Invalid hero frame path";
+        return;
+      }}
+      slot.innerHTML = `<img class="hero-frame" src="${{escapeHtml(url)}}" alt="${{escapeHtml(hero.label || hero.artifact_id || "Hero frame")}}">`;
       const bits = [];
       if (hero.width && hero.height) bits.push(`${{hero.width}}×${{hero.height}}`);
       if (hero.time_s != null) bits.push(`t=${{hero.time_s}}s`);
@@ -1647,8 +1713,14 @@ def render_live_html(session_ref: str, output_path: str, poll_ms: int = 1500) ->
         meta.textContent = "No clip";
         return;
       }}
+      const url = artifactUrl(session, clip);
+      if (!url) {{
+        slot.innerHTML = '<div class="empty">Preview clip path is invalid.</div>';
+        meta.textContent = "Invalid clip path";
+        return;
+      }}
       slot.innerHTML = `
-        <video class="hero-frame" controls preload="metadata" src="${{artifactUrl(session, clip)}}">
+        <video class="hero-frame" controls preload="metadata" src="${{escapeHtml(url)}}">
           Your browser does not support embedded video.
         </video>
       `;
@@ -1667,13 +1739,20 @@ def render_live_html(session_ref: str, output_path: str, poll_ms: int = 1500) ->
         root.innerHTML = '<div class="empty">No gallery frames were published in the current bundle.</div>';
         return;
       }}
-      root.innerHTML = items.map((artifact) => `
-        <article class="thumb">
-          <img src="${{artifactUrl(session, artifact)}}" alt="${{escapeHtml(artifact.label || artifact.artifact_id || "Gallery frame")}}">
-          <div class="label">${{escapeHtml(artifact.label || artifact.artifact_id || "Frame")}}</div>
-          <div class="meta">${{artifact.time_s != null ? `t=${{artifact.time_s}}s` : ""}}</div>
-        </article>
-      `).join("");
+      const cards = items.map((artifact) => {{
+        const url = artifactUrl(session, artifact);
+        if (!url) return "";
+        return `
+          <article class="thumb">
+            <img src="${{escapeHtml(url)}}" alt="${{escapeHtml(artifact.label || artifact.artifact_id || "Gallery frame")}}">
+            <div class="label">${{escapeHtml(artifact.label || artifact.artifact_id || "Frame")}}</div>
+            <div class="meta">${{artifact.time_s != null ? `t=${{artifact.time_s}}s` : ""}}</div>
+          </article>
+        `;
+      }}).filter(Boolean);
+      root.innerHTML = cards.length
+        ? cards.join("")
+        : '<div class="empty">No valid gallery frame paths were published in the current bundle.</div>';
     }}
 
     function renderNotes(session, manifest, summary, trajectory) {{
@@ -1742,11 +1821,14 @@ def render_live_html(session_ref: str, output_path: str, poll_ms: int = 1500) ->
     async function refresh() {{
       try {{
         const session = await fetchJson("session.json");
-        const manifest = await fetchJson(`${{CURRENT_LINK}}/manifest.json`);
+        const currentLink = safeRelativeUrlPath(CURRENT_LINK);
+        if (!currentLink) throw new Error("Invalid current bundle path");
+        const manifest = await fetchJson(`${{currentLink}}/manifest.json`);
         const trajectoryPayload = await fetchTrajectory(session);
         const trajectory = normalizeTrajectory(session, trajectoryPayload);
         let summary = {{}};
-        const summaryPath = manifest.summary_path ? `${{CURRENT_LINK}}/${{manifest.summary_path}}` : `${{CURRENT_LINK}}/summary.json`;
+        const summaryRef = safeRelativeUrlPath(manifest.summary_path || "summary.json");
+        const summaryPath = summaryRef ? `${{currentLink}}/${{summaryRef}}` : `${{currentLink}}/summary.json`;
         try {{
           summary = await fetchJson(summaryPath);
         }} catch (error) {{

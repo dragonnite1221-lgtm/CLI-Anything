@@ -2,7 +2,6 @@
 
 import json
 import os
-import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -33,6 +32,11 @@ from cli_hub.installer import (
 )
 from cli_hub.analytics import _is_enabled, track_event, track_install, track_uninstall as analytics_track_uninstall, track_visit, track_first_run, _detect_is_agent, detect_invocation_context
 from cli_hub.cli import main
+
+
+@pytest.fixture(autouse=True)
+def isolate_installed_file(tmp_path, monkeypatch):
+    monkeypatch.setattr("cli_hub.installer.INSTALLED_FILE", tmp_path / "installed.json")
 
 
 # ─── Sample registry data ─────────────────────────────────────────────
@@ -255,14 +259,14 @@ class TestRegistry:
     """Tests for registry.py — fetch, cache, search, and lookup."""
 
     @patch("cli_hub.registry.requests.get")
-    @patch("cli_hub.registry.CACHE_FILE", Path(tempfile.mktemp()))
-    def test_fetch_registry_from_remote(self, mock_get):
+    def test_fetch_registry_from_remote(self, mock_get, tmp_path):
         mock_resp = MagicMock()
         mock_resp.json.return_value = SAMPLE_REGISTRY
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
 
-        result = fetch_registry(force_refresh=True)
+        with patch("cli_hub.registry.CACHE_FILE", tmp_path / "registry.json"):
+            result = fetch_registry(force_refresh=True)
         assert result["clis"][0]["name"] == "gimp"
         mock_get.assert_called_once()
 
@@ -373,6 +377,20 @@ class TestPreviewBundle:
         assert "artifacts/hero.png" in content
         assert "artifacts/preview.mp4" in content
 
+    def test_render_html_does_not_link_artifacts_outside_bundle(self, tmp_path):
+        bundle_dir = _make_preview_bundle(tmp_path)
+        manifest_path = bundle_dir / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["artifacts"][0]["path"] = "../secret.txt"
+        manifest_path.write_text(json.dumps(manifest))
+
+        output_path = tmp_path / "preview.html"
+        render_html(str(bundle_dir), str(output_path))
+        content = output_path.read_text()
+
+        assert 'src="../secret.txt"' not in content
+        assert "Unavailable artifact path: ../secret.txt" in content
+
     def test_previews_inspect_cli_command(self, tmp_path):
         bundle_dir = _make_preview_bundle(tmp_path)
         runner = click.testing.CliRunner()
@@ -426,8 +444,32 @@ class TestPreviewBundle:
         content = output_path.read_text()
         assert "CLI-Anything Live Preview Session" in content
         assert 'const CURRENT_LINK = "current";' in content
-        assert "manifest = await fetchJson(`${CURRENT_LINK}/manifest.json`);" in content
+        assert "manifest = await fetchJson(`${currentLink}/manifest.json`);" in content
         assert "const POLL_MS = 800;" in content
+
+    def test_render_live_html_escapes_artifact_urls(self, tmp_path):
+        session_dir = _make_preview_session(tmp_path)
+        output_path = tmp_path / "live.html"
+        render_live_html(str(session_dir), str(output_path), poll_ms=800)
+        content = output_path.read_text()
+
+        assert "function safeRelativeUrlPath(value)" in content
+        assert "artifact.path}?rev=" not in content
+        assert 'src="${escapeHtml(url)}"' in content
+
+    def test_render_live_html_escapes_script_json(self, tmp_path):
+        session_dir = _make_preview_session(tmp_path)
+        session_path = session_dir / "session.json"
+        session = json.loads(session_path.read_text())
+        session["current_link"] = "</script><img src=x onerror=alert(1)>"
+        session_path.write_text(json.dumps(session))
+
+        output_path = tmp_path / "live.html"
+        render_live_html(str(session_dir), str(output_path), poll_ms=800)
+        content = output_path.read_text()
+
+        assert "</script><img" not in content
+        assert "\\u003c/script\\u003e" in content
 
     def test_render_live_html_with_trajectory(self, tmp_path):
         session_dir = _make_preview_session(tmp_path, with_trajectory=True)
@@ -500,7 +542,6 @@ class TestInstaller:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     def test_install_success(self, mock_get_cli, mock_run):
         mock_get_cli.return_value = SAMPLE_REGISTRY["clis"][0]
         mock_run.return_value = MagicMock(returncode=0)
@@ -518,7 +559,6 @@ class TestInstaller:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     def test_install_pip_failure(self, mock_get_cli, mock_run):
         mock_get_cli.return_value = SAMPLE_REGISTRY["clis"][0]
         mock_run.return_value = MagicMock(returncode=1, stderr="some error")
@@ -529,7 +569,6 @@ class TestInstaller:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     def test_uninstall_success(self, mock_get_cli, mock_run):
         mock_get_cli.return_value = SAMPLE_REGISTRY["clis"][0]
         mock_run.return_value = MagicMock(returncode=0)
@@ -540,7 +579,6 @@ class TestInstaller:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     def test_install_command_strategy_success(self, mock_get_cli, mock_run):
         mock_get_cli.return_value = {
             "name": "onepassword-cli",
@@ -561,7 +599,6 @@ class TestInstaller:
 
     @patch("cli_hub.installer.subprocess.run", side_effect=FileNotFoundError(2, "No such file or directory", "brew"))
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     def test_install_command_strategy_missing_executable(self, mock_get_cli, mock_run):
         mock_get_cli.return_value = {
             "name": "onepassword-cli",
@@ -581,7 +618,6 @@ class TestInstaller:
 
     @patch("cli_hub.installer.shutil.which", return_value="/usr/local/bin/obsidian")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     def test_install_bundled_strategy_success_when_detected(self, mock_get_cli, mock_which):
         mock_get_cli.return_value = {
             "name": "obsidian-cli",
@@ -627,7 +663,6 @@ class TestUvStrategy:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     @patch("cli_hub.installer._find_uv", return_value="/usr/bin/uv")
     def test_install_uv_success(self, mock_find_uv, mock_get_cli, mock_run):
         mock_get_cli.return_value = GENERATE_VEO_CLI
@@ -648,7 +683,6 @@ class TestUvStrategy:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     @patch("cli_hub.installer._find_uv", return_value="/usr/bin/uv")
     def test_uninstall_uv_success(self, mock_find_uv, mock_get_cli, mock_run):
         mock_get_cli.return_value = GENERATE_VEO_CLI
@@ -667,7 +701,6 @@ class TestUvStrategy:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     @patch("cli_hub.installer._find_uv", return_value="/usr/bin/uv")
     def test_update_uv_success(self, mock_find_uv, mock_get_cli, mock_run):
         mock_get_cli.return_value = GENERATE_VEO_CLI
@@ -820,7 +853,6 @@ class TestScriptStrategy:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     def test_install_shell_command_blocked_without_requires_shell(self, mock_get_cli, mock_run):
         """Registry shell commands must declare per-entry shell trust."""
         mock_get_cli.return_value = {k: v for k, v in JIMENG_CLI.items() if k != "requires_shell"}
@@ -834,7 +866,6 @@ class TestScriptStrategy:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     def test_install_jimeng_success_with_requires_shell(self, mock_get_cli, mock_run):
         """install_cli('jimeng') can run because the reviewed entry opted in."""
         mock_get_cli.return_value = JIMENG_CLI
@@ -852,7 +883,6 @@ class TestScriptStrategy:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     def test_install_sketch_uses_command_without_shell(self, mock_get_cli, mock_run):
         """install_cli('sketch') uses the reviewed npm command without shell=True."""
         mock_get_cli.return_value = SKETCH_CLI
@@ -869,7 +899,6 @@ class TestScriptStrategy:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
     def test_install_jimeng_failure_propagated(self, mock_get_cli, mock_run):
         """A non-zero exit from the curl|bash script surfaces as failure."""
         mock_get_cli.return_value = JIMENG_CLI
@@ -895,10 +924,9 @@ class TestScriptStrategy:
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
-    def test_install_jimeng_recorded_in_installed_json(self, mock_get_cli, mock_run):
+    def test_install_jimeng_recorded_in_installed_json(self, mock_get_cli, mock_run, tmp_path):
         """After a successful install, jimeng appears in installed.json."""
-        installed_file = Path(tempfile.mktemp())
+        installed_file = tmp_path / "jimeng-installed.json"
         mock_get_cli.return_value = JIMENG_CLI
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 

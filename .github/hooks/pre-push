@@ -1,0 +1,6 @@
+#!/bin/sh
+# Pre-push gate: block pushes that introduce new 200-line+ Python files.
+# Account-wide GitHub Actions minutes are exhausted, so this local hook is the
+# practical enforcement point.
+# Enable once with:  git config core.hooksPath .github/hooks
+exec python3 .github/scripts/check_file_size.py

@@ -1,0 +1,18 @@
+name: File Size
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  file-size:
+    name: 200-line Python limit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: File size gate
+        run: python .github/scripts/check_file_size.py

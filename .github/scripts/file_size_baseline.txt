@@ -11,7 +11,6 @@
 676 adguardhome/agent-harness/cli_anything/adguardhome/adguardhome_cli.py
 259 adguardhome/agent-harness/cli_anything/adguardhome/tests/test_core.py
 273 adguardhome/agent-harness/cli_anything/adguardhome/tests/test_full_e2e.py
-567 adguardhome/agent-harness/cli_anything/adguardhome/utils/repl_skin.py
 523 anygen/agent-harness/cli_anything/anygen/anygen_cli.py
 351 anygen/agent-harness/cli_anything/anygen/tests/test_core.py
 442 anygen/agent-harness/cli_anything/anygen/utils/anygen_backend.py
@@ -295,7 +294,6 @@
 227 safari/agent-harness/cli_anything/safari/tests/test_core.py
 258 safari/agent-harness/cli_anything/safari/tests/test_full_e2e.py
 356 safari/agent-harness/cli_anything/safari/tests/test_parity.py
-567 safari/agent-harness/cli_anything/safari/utils/repl_skin.py
 530 safari/agent-harness/scripts/extract_tools.py
 606 sbox/agent-harness/cli_anything/sbox/core/codegen.py
 233 sbox/agent-harness/cli_anything/sbox/core/collision_config.py

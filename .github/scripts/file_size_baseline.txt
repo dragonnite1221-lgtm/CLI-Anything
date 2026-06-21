@@ -10,7 +10,6 @@
 1230 cli-hub/tests/test_cli_hub.py
 815 cloudcompare/agent-harness/cli_anything/cloudcompare/tests/test_full_e2e.py
 840 docs/scripts/blender_orbital_relay_drone_demo.py
-756 docs/scripts/blender_preview_story_demo.py
 4981 docs/scripts/freecad_live_preview_demo.py
 347 eth2-quickstart/agent-harness/cli_anything/eth2_quickstart/tests/test_core.py
 606 firefly-iii/agent-harness/cli_anything/firefly_iii/tests/test_core.py
@@ -40,14 +39,10 @@
 346 n8n/agent-harness/cli_anything/n8n/tests/test_full_e2e.py
 568 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/replay.py
 1189 nsight-graphics/agent-harness/cli_anything/nsight_graphics/tests/test_core.py
-641 nslogger/agent-harness/cli_anything/nslogger/nslogger_cli.py
 922 nslogger/agent-harness/cli_anything/nslogger/tests/test_core.py
 243 openscreen/agent-harness/cli_anything/openscreen/core/session.py
-844 openscreen/agent-harness/cli_anything/openscreen/openscreen_cli.py
 524 openscreen/agent-harness/cli_anything/openscreen/tests/test_full_e2e.py
 516 renderdoc/agent-harness/cli_anything/renderdoc/core/preview.py
-208 sbox/agent-harness/cli_anything/sbox/core/input_config.py
-417 sbox/agent-harness/cli_anything/sbox/core/project.py
 341 sbox/agent-harness/cli_anything/sbox/core/session.py
 1291 sbox/agent-harness/cli_anything/sbox/tests/test_full_e2e.py
 1630 shotcut/agent-harness/cli_anything/shotcut/shotcut_cli.py
@@ -55,7 +50,6 @@
 1239 shotcut/agent-harness/cli_anything/shotcut/tests/test_full_e2e.py
 241 shotcut/agent-harness/workflow_demo.py
 1191 unrealinsights/agent-harness/cli_anything/unrealinsights/tests/test_core.py
-1088 unrealinsights/agent-harness/cli_anything/unrealinsights/unrealinsights_cli.py
 705 zotero/agent-harness/cli_anything/zotero/tests/_helpers.py
 523 zotero/agent-harness/cli_anything/zotero/tests/test_cli_entrypoint.py
 701 zotero/agent-harness/cli_anything/zotero/tests/test_core.py

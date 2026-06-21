@@ -18,7 +18,6 @@ MEMORY_FIND_CHUNK_SIZE = 64 * 1024
 __all__ = [
     "Any",
     "Dict",
-    "LLDBSession",
     "List",
     "MEMORY_FIND_CHUNK_SIZE",
     "MEMORY_FIND_MAX_SCAN_SIZE",

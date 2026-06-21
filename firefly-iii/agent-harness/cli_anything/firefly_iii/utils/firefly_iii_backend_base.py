@@ -13,7 +13,6 @@ from typing import Dict, Any, Optional
 __all__ = [
     "Any",
     "Dict",
-    "FireflyIIIBackend",
     "Optional",
     "os",
     "requests",

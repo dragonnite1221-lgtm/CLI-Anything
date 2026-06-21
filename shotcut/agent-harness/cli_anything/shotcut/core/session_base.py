@@ -55,7 +55,6 @@ __all__ = [
     "Optional",
     "Path",
     "SESSION_DIR",
-    "Session",
     "_locked_save_json",
     "json",
     "mlt_xml",

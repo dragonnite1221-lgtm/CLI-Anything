@@ -57,14 +57,14 @@ _LIGHT_GRAY = "\033[38;5;250m"
 
 
 _ACCENT_COLORS = {
-    "gimp": "\033[38;5;214m",  # warm orange
-    "blender": "\033[38;5;208m",  # deep orange
-    "inkscape": "\033[38;5;39m",  # bright blue
-    "audacity": "\033[38;5;33m",  # navy blue
-    "libreoffice": "\033[38;5;40m",  # green
-    "obs_studio": "\033[38;5;55m",  # purple
-    "kdenlive": "\033[38;5;69m",  # slate blue
-    "shotcut": "\033[38;5;35m",  # teal green
+    "gimp": "\033[38;5;214m", # warm orange
+    "blender": "\033[38;5;208m", # deep orange
+    "inkscape": "\033[38;5;39m", # bright blue
+    "audacity": "\033[38;5;33m", # navy blue
+    "libreoffice": "\033[38;5;40m", # green
+    "obs_studio": "\033[38;5;55m", # purple
+    "kdenlive": "\033[38;5;69m", # slate blue
+    "shotcut": "\033[38;5;35m", # teal green
 }
 
 
@@ -138,21 +138,20 @@ def _visible_len(text: str) -> int:
 
 
 _ANSI_256_TO_HEX = {
-    "\033[38;5;33m": "#0087ff",  # audacity navy blue
-    "\033[38;5;35m": "#00af5f",  # shotcut teal
-    "\033[38;5;39m": "#00afff",  # inkscape bright blue
-    "\033[38;5;40m": "#00d700",  # libreoffice green
-    "\033[38;5;55m": "#5f00af",  # obs purple
-    "\033[38;5;69m": "#5f87ff",  # kdenlive slate blue
-    "\033[38;5;75m": "#5fafff",  # default sky blue
-    "\033[38;5;80m": "#5fd7d7",  # brand cyan
-    "\033[38;5;208m": "#ff8700",  # blender deep orange
-    "\033[38;5;214m": "#ffaf00",  # gimp warm orange
+    "\033[38;5;33m": "#0087ff", # audacity navy blue
+    "\033[38;5;35m": "#00af5f", # shotcut teal
+    "\033[38;5;39m": "#00afff", # inkscape bright blue
+    "\033[38;5;40m": "#00d700", # libreoffice green
+    "\033[38;5;55m": "#5f00af", # obs purple
+    "\033[38;5;69m": "#5f87ff", # kdenlive slate blue
+    "\033[38;5;75m": "#5fafff", # default sky blue
+    "\033[38;5;80m": "#5fd7d7", # brand cyan
+    "\033[38;5;208m": "#ff8700", # blender deep orange
+    "\033[38;5;214m": "#ffaf00", # gimp warm orange
 }
 
 
 __all__ = [
-    "ReplSkin",
     "_ACCENT_COLORS",
     "_ANSI_256_TO_HEX",
     "_BL",

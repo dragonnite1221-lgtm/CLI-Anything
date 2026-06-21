@@ -5,7 +5,6 @@
 329 audacity/agent-harness/cli_anything/audacity/core/effects.py
 802 audacity/agent-harness/cli_anything/audacity/tests/test_full_e2e.py
 306 blender/agent-harness/cli_anything/blender/core/modifiers.py
-208 blender/agent-harness/cli_anything/blender/core/scene.py
 1345 blender/agent-harness/cli_anything/blender/tests/test_core.py
 1263 blender/agent-harness/cli_anything/blender/tests/test_full_e2e.py
 468 cli-anything-plugin/preview_bundle.py
@@ -31,7 +30,6 @@
 382 gimp/agent-harness/cli_anything/gimp/core/filters.py
 623 godot/agent-harness/cli_anything/godot/tests/test_full_e2e.py
 885 inkscape/agent-harness/cli_anything/inkscape/tests/test_full_e2e.py
-208 kdenlive/agent-harness/cli_anything/kdenlive/core/project.py
 874 kdenlive/agent-harness/cli_anything/kdenlive/tests/test_full_e2e.py
 448 kdenlive/agent-harness/cli_anything/kdenlive/utils/mlt_xml.py
 417 libreoffice/agent-harness/cli_anything/libreoffice/core/importer.py
@@ -63,7 +61,6 @@
 1189 nsight-graphics/agent-harness/cli_anything/nsight_graphics/tests/test_core.py
 641 nslogger/agent-harness/cli_anything/nslogger/nslogger_cli.py
 922 nslogger/agent-harness/cli_anything/nslogger/tests/test_core.py
-279 obs-studio/agent-harness/cli_anything/obs_studio/core/filters.py
 269 openscreen/agent-harness/cli_anything/openscreen/core/export.py
 243 openscreen/agent-harness/cli_anything/openscreen/core/session.py
 844 openscreen/agent-harness/cli_anything/openscreen/openscreen_cli.py

@@ -2,11 +2,9 @@
 # Format: <line_count> <path>; limit=200.
 
 1263 blender/agent-harness/cli_anything/blender/tests/test_full_e2e.py
-397 cli-anything-plugin/tests/test_skill_generator.py
 1891 cli-hub/cli_hub/preview.py
 840 docs/scripts/blender_orbital_relay_drone_demo.py
 4981 docs/scripts/freecad_live_preview_demo.py
-606 firefly-iii/agent-harness/cli_anything/firefly_iii/tests/test_core.py
 597 firefly-iii/agent-harness/cli_anything/firefly_iii/tests/test_full_e2e.py
 1230 freecad/agent-harness/cli_anything/freecad/tests/test_full_e2e.py
 627 freecad/agent-harness/cli_anything/freecad/utils/freecad_macro_gen.py
@@ -16,10 +14,7 @@
 1032 lldb/agent-harness/cli_anything/lldb/tests/test_core.py
 203 macrocli/agent-harness/cli_anything/macrocli/backends/file_transform.py
 205 macrocli/agent-harness/cli_anything/macrocli/backends/gui_macro.py
-301 mubu/agent-harness/cli_anything/mubu/tests/test_core.py
-311 mubu/agent-harness/cli_anything/mubu/tests/test_full_e2e.py
 2265 mubu/agent-harness/mubu_probe.py
-398 musescore/agent-harness/cli_anything/musescore/tests/test_core.py
 568 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/replay.py
 1189 nsight-graphics/agent-harness/cli_anything/nsight_graphics/tests/test_core.py
 516 renderdoc/agent-harness/cli_anything/renderdoc/core/preview.py

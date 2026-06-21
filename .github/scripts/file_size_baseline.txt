@@ -4,7 +4,6 @@
 802 audacity/agent-harness/cli_anything/audacity/tests/test_full_e2e.py
 1345 blender/agent-harness/cli_anything/blender/tests/test_core.py
 1263 blender/agent-harness/cli_anything/blender/tests/test_full_e2e.py
-567 cli-anything-plugin/repl_skin.py
 397 cli-anything-plugin/tests/test_skill_generator.py
 1891 cli-hub/cli_hub/preview.py
 1230 cli-hub/tests/test_cli_hub.py
@@ -24,9 +23,7 @@
 417 libreoffice/agent-harness/cli_anything/libreoffice/core/importer.py
 1032 lldb/agent-harness/cli_anything/lldb/tests/test_core.py
 203 macrocli/agent-harness/cli_anything/macrocli/backends/file_transform.py
-561 macrocli/agent-harness/cli_anything/macrocli/backends/gui_agent.py
 205 macrocli/agent-harness/cli_anything/macrocli/backends/gui_macro.py
-246 macrocli/agent-harness/cli_anything/macrocli/backends/native_api.py
 587 macrocli/agent-harness/cli_anything/macrocli/backends/semantic_ui.py
 730 macrocli/agent-harness/cli_anything/macrocli/backends/visual_anchor.py
 566 mailchimp/agent-harness/cli_anything/mailchimp/tests/test_core.py

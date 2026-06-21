@@ -24,8 +24,6 @@
 1032 lldb/agent-harness/cli_anything/lldb/tests/test_core.py
 203 macrocli/agent-harness/cli_anything/macrocli/backends/file_transform.py
 205 macrocli/agent-harness/cli_anything/macrocli/backends/gui_macro.py
-587 macrocli/agent-harness/cli_anything/macrocli/backends/semantic_ui.py
-730 macrocli/agent-harness/cli_anything/macrocli/backends/visual_anchor.py
 566 mailchimp/agent-harness/cli_anything/mailchimp/tests/test_core.py
 319 mubu/agent-harness/cli_anything/mubu/tests/test_cli_entrypoint.py
 301 mubu/agent-harness/cli_anything/mubu/tests/test_core.py

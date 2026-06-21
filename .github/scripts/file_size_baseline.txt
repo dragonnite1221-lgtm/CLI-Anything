@@ -74,7 +74,6 @@
 840 docs/scripts/blender_orbital_relay_drone_demo.py
 756 docs/scripts/blender_preview_story_demo.py
 4981 docs/scripts/freecad_live_preview_demo.py
-201 drawio/agent-harness/cli_anything/drawio/core/session.py
 812 drawio/agent-harness/cli_anything/drawio/drawio_cli.py
 869 drawio/agent-harness/cli_anything/drawio/tests/test_core.py
 612 drawio/agent-harness/cli_anything/drawio/tests/test_full_e2e.py

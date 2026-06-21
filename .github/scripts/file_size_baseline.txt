@@ -2,7 +2,7 @@
 # Format: <line_count> <path>; limit=200.
 
 1891 cli-hub/cli_hub/preview.py
-4981 docs/scripts/freecad_live_preview_demo.py
+5098 docs/scripts/freecad_live_preview_demo.py
 627 freecad/agent-harness/cli_anything/freecad/utils/freecad_macro_gen.py
 417 libreoffice/agent-harness/cli_anything/libreoffice/core/importer.py
 2265 mubu/agent-harness/mubu_probe.py

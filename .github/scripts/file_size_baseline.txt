@@ -2,12 +2,9 @@
 # Format: <line_count> <path>; limit=200.
 
 1891 cli-hub/cli_hub/preview.py
-840 docs/scripts/blender_orbital_relay_drone_demo.py
 4981 docs/scripts/freecad_live_preview_demo.py
 627 freecad/agent-harness/cli_anything/freecad/utils/freecad_macro_gen.py
 417 libreoffice/agent-harness/cli_anything/libreoffice/core/importer.py
 2265 mubu/agent-harness/mubu_probe.py
-516 renderdoc/agent-harness/cli_anything/renderdoc/core/preview.py
 1630 shotcut/agent-harness/cli_anything/shotcut/shotcut_cli.py
-241 shotcut/agent-harness/workflow_demo.py
 705 zotero/agent-harness/cli_anything/zotero/tests/_helpers.py

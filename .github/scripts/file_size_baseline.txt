@@ -2,7 +2,6 @@
 # Format: <line_count> <path>; limit=200.
 
 278 .github/scripts/update_registry_dates.py
-562 QGIS/agent-harness/cli_anything/qgis/tests/test_full_e2e.py
 329 audacity/agent-harness/cli_anything/audacity/core/effects.py
 802 audacity/agent-harness/cli_anything/audacity/tests/test_full_e2e.py
 306 blender/agent-harness/cli_anything/blender/core/modifiers.py
@@ -31,7 +30,6 @@
 627 freecad/agent-harness/cli_anything/freecad/utils/freecad_macro_gen.py
 382 gimp/agent-harness/cli_anything/gimp/core/filters.py
 623 godot/agent-harness/cli_anything/godot/tests/test_full_e2e.py
-1125 inkscape/agent-harness/cli_anything/inkscape/tests/test_core.py
 885 inkscape/agent-harness/cli_anything/inkscape/tests/test_full_e2e.py
 208 kdenlive/agent-harness/cli_anything/kdenlive/core/project.py
 874 kdenlive/agent-harness/cli_anything/kdenlive/tests/test_full_e2e.py
@@ -76,7 +74,6 @@
 417 sbox/agent-harness/cli_anything/sbox/core/project.py
 1407 sbox/agent-harness/cli_anything/sbox/core/scene.py
 341 sbox/agent-harness/cli_anything/sbox/core/session.py
-2431 sbox/agent-harness/cli_anything/sbox/tests/test_core.py
 1291 sbox/agent-harness/cli_anything/sbox/tests/test_full_e2e.py
 1036 shotcut/agent-harness/cli_anything/shotcut/core/filters.py
 663 shotcut/agent-harness/cli_anything/shotcut/core/transitions.py

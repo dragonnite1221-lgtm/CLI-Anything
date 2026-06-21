@@ -30,13 +30,6 @@
 246 macrocli/agent-harness/cli_anything/macrocli/backends/native_api.py
 587 macrocli/agent-harness/cli_anything/macrocli/backends/semantic_ui.py
 730 macrocli/agent-harness/cli_anything/macrocli/backends/visual_anchor.py
-430 mailchimp/agent-harness/cli_anything/mailchimp/commands/automations.py
-553 mailchimp/agent-harness/cli_anything/mailchimp/commands/campaigns.py
-1518 mailchimp/agent-harness/cli_anything/mailchimp/commands/ecommerce.py
-319 mailchimp/agent-harness/cli_anything/mailchimp/commands/file_manager.py
-1758 mailchimp/agent-harness/cli_anything/mailchimp/commands/lists.py
-353 mailchimp/agent-harness/cli_anything/mailchimp/commands/reporting.py
-656 mailchimp/agent-harness/cli_anything/mailchimp/commands/reports.py
 566 mailchimp/agent-harness/cli_anything/mailchimp/tests/test_core.py
 319 mubu/agent-harness/cli_anything/mubu/tests/test_cli_entrypoint.py
 301 mubu/agent-harness/cli_anything/mubu/tests/test_core.py

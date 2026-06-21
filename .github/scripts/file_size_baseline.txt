@@ -58,7 +58,6 @@
 567 drawio/agent-harness/cli_anything/drawio/utils/repl_skin.py
 347 eth2-quickstart/agent-harness/cli_anything/eth2_quickstart/tests/test_core.py
 567 eth2-quickstart/agent-harness/cli_anything/eth2_quickstart/utils/repl_skin.py
-317 exa/agent-harness/cli_anything/exa/exa_cli.py
 247 exa/agent-harness/cli_anything/exa/tests/test_core.py
 203 exa/agent-harness/cli_anything/exa/tests/test_full_e2e.py
 532 exa/agent-harness/cli_anything/exa/utils/repl_skin.py
@@ -246,11 +245,9 @@
 523 zoom/agent-harness/cli_anything/zoom/tests/test_core.py
 567 zoom/agent-harness/cli_anything/zoom/utils/repl_skin.py
 517 zoom/agent-harness/cli_anything/zoom/zoom_cli.py
-252 zotero/agent-harness/cli_anything/zotero/core/catalog.py
 705 zotero/agent-harness/cli_anything/zotero/tests/_helpers.py
 523 zotero/agent-harness/cli_anything/zotero/tests/test_cli_entrypoint.py
 701 zotero/agent-harness/cli_anything/zotero/tests/test_core.py
 351 zotero/agent-harness/cli_anything/zotero/tests/test_full_e2e.py
 567 zotero/agent-harness/cli_anything/zotero/utils/repl_skin.py
-1085 zotero/agent-harness/cli_anything/zotero/zotero_cli.py
 297 zotero/agent-harness/skill_generator.py

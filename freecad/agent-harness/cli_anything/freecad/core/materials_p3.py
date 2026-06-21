@@ -1,60 +1,134 @@
 # ruff: noqa: F403, F405, E501
 from .materials_base import *  # noqa: F403
 
-
-def _unique_name(project: Dict[str, Any], base_name: str) -> str:
-    """Generate a unique material name."""
-    materials = project.get("materials", [])
-    existing_names = {m.get("name", "") for m in materials}
-    if base_name not in existing_names:
-        return base_name
-    counter = 1
-    while f"{base_name}.{counter:03d}" in existing_names:
-        counter += 1
-    return f"{base_name}.{counter:03d}"
+# fmt: off
+from .materials_p1 import PRESETS  # noqa: E402,E501
+from .materials_p2 import MATERIAL_PROPS, _next_id, _unique_name, _validate_color, _validate_project  # noqa: E402,E501
+# fmt: on
 
 
-def _validate_project(project: Dict[str, Any]) -> None:
-    """Raise ``ValueError`` if *project* is not a valid dict with a materials list."""
-    if not isinstance(project, dict):
-        raise ValueError("Project must be a dictionary")
-    if "materials" not in project:
-        raise ValueError("Project is missing 'materials' collection")
-    if not isinstance(project["materials"], list):
-        raise ValueError("Project 'materials' must be a list")
+def create_material(
+    project: Dict[str, Any],
+    name: str = "Material",
+    preset: Optional[str] = None,
+    color: Optional[List[float]] = None,
+    metallic: float = 0.0,
+    roughness: float = 0.5,
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    """Create a new material, optionally based on a preset.
 
+    When *preset* is given, its ``color``, ``metallic``, and ``roughness``
+    values are used as defaults.  Explicit *color*, *metallic*, and
+    *roughness* arguments override the preset values.
 
-def _get_material(project: Dict[str, Any], index: int) -> Dict[str, Any]:
-    """Return material at *index* or raise ``IndexError``."""
-    materials = project["materials"]
-    if index < 0 or index >= len(materials):
-        raise IndexError(
-            f"Material index {index} out of range (0-{len(materials) - 1})"
-        )
-    return materials[index]
+    Parameters
+    ----------
+    project:
+        The project dictionary.
+    name:
+        Material display name.
+    preset:
+        Optional preset key from :data:`PRESETS`.
+    color:
+        Base color ``[R, G, B, A]`` with components in ``[0, 1]``.
+    metallic:
+        Metallic factor ``[0, 1]``.
+    roughness:
+        Roughness factor ``[0, 1]``.
+    **kwargs:
+        Optional engineering properties: ``density``, ``youngs_modulus``,
+        ``poisson_ratio``, ``thermal_conductivity``, ``specific_heat``,
+        ``yield_strength``, ``ultimate_strength``.
 
+    Returns
+    -------
+    Dict[str, Any]
+        The newly created material dictionary.
 
-def _validate_color(color: List[float]) -> List[float]:
-    """Validate and return a color as a list of 4 floats in [0, 1]."""
-    if not isinstance(color, (list, tuple)):
-        raise ValueError(f"Color must be a list, got {type(color).__name__}")
-    if len(color) < 3:
-        raise ValueError(
-            f"Color must have at least 3 components [R, G, B], got {len(color)}"
-        )
-    if len(color) == 3:
-        color = list(color) + [1.0]
-    if len(color) > 4:
-        raise ValueError(
-            f"Color must have at most 4 components [R, G, B, A], got {len(color)}"
-        )
-    result: List[float] = []
-    for i, c in enumerate(color):
-        try:
-            val = float(c)
-        except (TypeError, ValueError) as exc:
-            raise ValueError(f"Color component {i} must be numeric: {exc}") from exc
-        if not 0.0 <= val <= 1.0:
-            raise ValueError(f"Color component {i} must be 0.0-1.0, got {val}")
-        result.append(val)
-    return result
+    Raises
+    ------
+    ValueError
+        If the preset is unknown, colour is invalid, or numeric values are
+        out of range.
+    """
+    _validate_project(project)
+
+    # Resolve preset defaults
+    preset_data: Dict[str, Any] = {}
+    if preset is not None:
+        if preset not in PRESETS:
+            raise ValueError(
+                f"Unknown preset '{preset}'. Available presets: {', '.join(sorted(PRESETS))}"
+            )
+        preset_data = PRESETS[preset]
+        # Use preset name as the material name if caller left the default
+        if name == "Material":
+            name = preset.replace("_", " ").title()
+
+    # Determine final values (explicit args override preset)
+    final_color: List[float]
+    if color is not None:
+        final_color = _validate_color(color)
+    elif "color" in preset_data:
+        final_color = list(preset_data["color"])
+    else:
+        final_color = [0.8, 0.8, 0.8, 1.0]
+
+    final_metallic = metallic
+    if preset_data and metallic == 0.0 and "metallic" in preset_data:
+        # Only use preset metallic when caller left the default
+        final_metallic = preset_data["metallic"]
+    final_metallic = float(final_metallic)
+
+    final_roughness = roughness
+    if preset_data and roughness == 0.5 and "roughness" in preset_data:
+        final_roughness = preset_data["roughness"]
+    final_roughness = float(final_roughness)
+
+    if not 0.0 <= final_metallic <= 1.0:
+        raise ValueError(f"Metallic must be 0.0-1.0, got {final_metallic}")
+    if not 0.0 <= final_roughness <= 1.0:
+        raise ValueError(f"Roughness must be 0.0-1.0, got {final_roughness}")
+
+    mat_name = _unique_name(project, name)
+
+    mat: Dict[str, Any] = {
+        "id": _next_id(project),
+        "name": mat_name,
+        "preset": preset,
+        "color": final_color,
+        "metallic": final_metallic,
+        "roughness": final_roughness,
+        "assigned_to": [],
+    }
+
+    # Engineering properties from preset (as defaults) and kwargs (overrides)
+    _ENG_PROPS = (
+        "density",
+        "youngs_modulus",
+        "poisson_ratio",
+        "thermal_conductivity",
+        "specific_heat",
+        "yield_strength",
+        "ultimate_strength",
+    )
+    for ep in _ENG_PROPS:
+        value = kwargs.get(ep)
+        if value is None and preset_data:
+            value = preset_data.get(ep)
+        if value is not None:
+            value = float(value)
+            spec = MATERIAL_PROPS.get(ep, {})
+            if spec.get("min") is not None and value < spec["min"]:
+                raise ValueError(
+                    f"Property '{ep}' minimum is {spec['min']}, got {value}"
+                )
+            if spec.get("max") is not None and value > spec["max"]:
+                raise ValueError(
+                    f"Property '{ep}' maximum is {spec['max']}, got {value}"
+                )
+            mat[ep] = value
+
+    project["materials"].append(mat)
+    return mat

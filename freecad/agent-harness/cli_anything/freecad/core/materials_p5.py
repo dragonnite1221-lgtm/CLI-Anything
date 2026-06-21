@@ -2,98 +2,18 @@
 from .materials_base import *  # noqa: F403
 
 # fmt: off
-from .materials_p3 import _get_material, _validate_project  # noqa: E402,E501
+from .materials_p1 import PRESETS  # noqa: E402,E501
+from .materials_p2 import MATERIAL_PROPS, _get_material, _validate_color, _validate_project  # noqa: E402,E501
 # fmt: on
 
 
-def assign_material(
+def set_material_property(
     project: Dict[str, Any],
-    material_index: int,
-    part_index: int,
-) -> Dict[str, Any]:
-    """Assign a material to a part.
-
-    Parameters
-    ----------
-    project:
-        The project dictionary.
-    material_index:
-        Index of the material in ``project["materials"]``.
-    part_index:
-        Index of the part in ``project["parts"]``.
-
-    Returns
-    -------
-    Dict[str, Any]
-        Assignment summary with material and part names/IDs.
-
-    Raises
-    ------
-    IndexError
-        If either index is out of range.
-    """
-    _validate_project(project)
-
-    mat = _get_material(project, material_index)
-
-    parts = project.get("parts", [])
-    if not isinstance(parts, list):
-        raise ValueError("Project 'parts' must be a list")
-    if part_index < 0 or part_index >= len(parts):
-        raise IndexError(f"Part index {part_index} out of range (0-{len(parts) - 1})")
-
-    part = parts[part_index]
-
-    # Record the assignment on the material
-    if part_index not in mat.get("assigned_to", []):
-        mat.setdefault("assigned_to", []).append(part_index)
-
-    # Record the material on the part
-    part["material_id"] = mat["id"]
-    part["material_index"] = material_index
-
-    return {
-        "material": mat["name"],
-        "material_id": mat["id"],
-        "part": part.get("name", f"Part {part_index}"),
-        "part_id": part.get("id", part_index),
-    }
-
-
-def list_materials(project: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Return a summary list of all materials in the project.
-
-    Parameters
-    ----------
-    project:
-        The project dictionary.
-
-    Returns
-    -------
-    List[Dict[str, Any]]
-        List of material summaries.
-    """
-    _validate_project(project)
-
-    result: List[Dict[str, Any]] = []
-    for i, mat in enumerate(project["materials"]):
-        result.append(
-            {
-                "index": i,
-                "id": mat.get("id", i),
-                "name": mat.get("name", f"Material {i}"),
-                "preset": mat.get("preset"),
-                "color": mat.get("color", [0.8, 0.8, 0.8, 1.0]),
-                "metallic": mat.get("metallic", 0.0),
-                "roughness": mat.get("roughness", 0.5),
-                "assigned_to": mat.get("assigned_to", []),
-            }
-        )
-    return result
-
-
-def get_material(project: Dict[str, Any], index: int) -> Dict[str, Any]:
-    """Return the full material dictionary at the given index.
+    index: int,
+    prop: str,
+    value: Any,
+) -> None:
+    """Set a single property on a material.
 
     Parameters
     ----------
@@ -101,11 +21,77 @@ def get_material(project: Dict[str, Any], index: int) -> Dict[str, Any]:
         The project dictionary.
     index:
         Material index.
+    prop:
+        Property name.  One of ``"color"``, ``"metallic"``, ``"roughness"``,
+        or ``"name"``.
+    value:
+        New value.  Type depends on the property.
+
+    Raises
+    ------
+    IndexError
+        If *index* is out of range.
+    ValueError
+        If *prop* is unknown or *value* is invalid.
+    """
+    _validate_project(project)
+    mat = _get_material(project, index)
+
+    if prop not in MATERIAL_PROPS:
+        raise ValueError(
+            f"Unknown material property: '{prop}'. "
+            f"Valid properties: {', '.join(sorted(MATERIAL_PROPS))}"
+        )
+
+    spec = MATERIAL_PROPS[prop]
+    ptype = spec["type"]
+
+    if ptype == "float":
+        value = float(value)
+        if "min" in spec and value < spec["min"]:
+            raise ValueError(f"Property '{prop}' minimum is {spec['min']}, got {value}")
+        if "max" in spec and value > spec["max"]:
+            raise ValueError(f"Property '{prop}' maximum is {spec['max']}, got {value}")
+        mat[prop] = value
+    elif ptype == "color4":
+        if isinstance(value, str):
+            value = [float(x.strip()) for x in value.split(",")]
+        mat[prop] = _validate_color(value)
+    elif ptype == "str":
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"Property '{prop}' must be a non-empty string")
+        mat[prop] = value.strip()
+    else:
+        mat[prop] = value
+
+
+def list_presets() -> List[Dict[str, Any]]:
+    """Return a list of all available material presets.
 
     Returns
     -------
-    Dict[str, Any]
-        The complete material dictionary.
+    List[Dict[str, Any]]
+        Each entry contains the preset ``name``, ``color``, ``metallic``,
+        ``roughness``, and any engineering properties.
     """
-    _validate_project(project)
-    return _get_material(project, index)
+    results: List[Dict[str, Any]] = []
+    for key, value in PRESETS.items():
+        entry: Dict[str, Any] = {
+            "name": key,
+            "color": list(value["color"]),
+            "metallic": value["metallic"],
+            "roughness": value["roughness"],
+        }
+        for ep in (
+            "density",
+            "youngs_modulus",
+            "poisson_ratio",
+            "thermal_conductivity",
+            "specific_heat",
+            "yield_strength",
+            "ultimate_strength",
+        ):
+            if ep in value:
+                entry[ep] = value[ep]
+        results.append(entry)
+    return results

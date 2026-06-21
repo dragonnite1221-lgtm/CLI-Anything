@@ -1,88 +1,7 @@
 # ruff: noqa: F403, F405, E501
 from .materials_base import *  # noqa: F403
 
-# fmt: off
-from .materials_p1 import _PRESETS_PART0  # noqa: E402,E501
-# fmt: on
 
-
-_PRESETS_PART1 = {
-    "stainless_steel": {
-        "color": [0.75, 0.75, 0.77, 1.0],
-        "metallic": 0.95,
-        "roughness": 0.2,
-        "density": 8000,
-        "youngs_modulus": 193,
-        "poisson_ratio": 0.29,
-        "yield_strength": 205,
-        "ultimate_strength": 515,
-    },
-    "cast_iron": {
-        "color": [0.4, 0.4, 0.42, 1.0],
-        "metallic": 0.85,
-        "roughness": 0.6,
-        "density": 7200,
-        "youngs_modulus": 170,
-        "poisson_ratio": 0.26,
-    },
-    "carbon_fiber": {
-        "color": [0.1, 0.1, 0.12, 1.0],
-        "metallic": 0.3,
-        "roughness": 0.15,
-        "density": 1600,
-        "youngs_modulus": 230,
-    },
-    "nylon": {
-        "color": [0.9, 0.88, 0.82, 1.0],
-        "metallic": 0.0,
-        "roughness": 0.5,
-        "density": 1150,
-        "youngs_modulus": 2.7,
-    },
-    "abs": {
-        "color": [0.95, 0.95, 0.9, 1.0],
-        "metallic": 0.0,
-        "roughness": 0.45,
-        "density": 1040,
-        "youngs_modulus": 2.3,
-    },
-    "pla": {
-        "color": [0.9, 0.9, 0.85, 1.0],
-        "metallic": 0.0,
-        "roughness": 0.4,
-        "density": 1240,
-        "youngs_modulus": 3.5,
-    },
-    "petg": {
-        "color": [0.85, 0.88, 0.92, 1.0],
-        "metallic": 0.05,
-        "roughness": 0.35,
-        "density": 1270,
-        "youngs_modulus": 2.2,
-    },
-    "concrete": {
-        "color": [0.7, 0.7, 0.68, 1.0],
-        "metallic": 0.0,
-        "roughness": 0.9,
-        "density": 2400,
-        "youngs_modulus": 30,
-    },
-    "granite": {
-        "color": [0.55, 0.5, 0.48, 1.0],
-        "metallic": 0.1,
-        "roughness": 0.7,
-        "density": 2700,
-        "youngs_modulus": 70,
-    },
-    "marble": {
-        "color": [0.92, 0.9, 0.88, 1.0],
-        "metallic": 0.05,
-        "roughness": 0.3,
-        "density": 2700,
-        "youngs_modulus": 70,
-    },
-}
-PRESETS: Dict[str, Dict[str, Any]] = {**_PRESETS_PART0, **_PRESETS_PART1}
 MATERIAL_PROPS: Dict[str, Dict[str, Any]] = {
     "color": {"type": "color4", "description": "Base color [R, G, B, A] (0.0-1.0)"},
     "metallic": {
@@ -138,3 +57,61 @@ def _next_id(project: Dict[str, Any]) -> int:
     materials = project.get("materials", [])
     existing_ids = [m.get("id", 0) for m in materials]
     return max(existing_ids, default=-1) + 1
+
+
+def _unique_name(project: Dict[str, Any], base_name: str) -> str:
+    """Generate a unique material name."""
+    materials = project.get("materials", [])
+    existing_names = {m.get("name", "") for m in materials}
+    if base_name not in existing_names:
+        return base_name
+    counter = 1
+    while f"{base_name}.{counter:03d}" in existing_names:
+        counter += 1
+    return f"{base_name}.{counter:03d}"
+
+
+def _validate_project(project: Dict[str, Any]) -> None:
+    """Raise ``ValueError`` if *project* is not a valid dict with a materials list."""
+    if not isinstance(project, dict):
+        raise ValueError("Project must be a dictionary")
+    if "materials" not in project:
+        raise ValueError("Project is missing 'materials' collection")
+    if not isinstance(project["materials"], list):
+        raise ValueError("Project 'materials' must be a list")
+
+
+def _get_material(project: Dict[str, Any], index: int) -> Dict[str, Any]:
+    """Return material at *index* or raise ``IndexError``."""
+    materials = project["materials"]
+    if index < 0 or index >= len(materials):
+        raise IndexError(
+            f"Material index {index} out of range (0-{len(materials) - 1})"
+        )
+    return materials[index]
+
+
+def _validate_color(color: List[float]) -> List[float]:
+    """Validate and return a color as a list of 4 floats in [0, 1]."""
+    if not isinstance(color, (list, tuple)):
+        raise ValueError(f"Color must be a list, got {type(color).__name__}")
+    if len(color) < 3:
+        raise ValueError(
+            f"Color must have at least 3 components [R, G, B], got {len(color)}"
+        )
+    if len(color) == 3:
+        color = list(color) + [1.0]
+    if len(color) > 4:
+        raise ValueError(
+            f"Color must have at most 4 components [R, G, B, A], got {len(color)}"
+        )
+    result: List[float] = []
+    for i, c in enumerate(color):
+        try:
+            val = float(c)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Color component {i} must be numeric: {exc}") from exc
+        if not 0.0 <= val <= 1.0:
+            raise ValueError(f"Color component {i} must be 0.0-1.0, got {val}")
+        result.append(val)
+    return result

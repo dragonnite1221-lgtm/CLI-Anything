@@ -2,7 +2,7 @@
 from .materials_base import *  # noqa: F403
 
 
-_PRESETS_PART0 = {
+PRESETS: Dict[str, Dict[str, Any]] = {
     "steel": {
         "color": [0.7, 0.7, 0.75, 1.0],
         "metallic": 0.9,
@@ -62,5 +62,79 @@ _PRESETS_PART0 = {
         "poisson_ratio": 0.34,
         "yield_strength": 880,
         "ultimate_strength": 950,
+    },
+    "stainless_steel": {
+        "color": [0.75, 0.75, 0.77, 1.0],
+        "metallic": 0.95,
+        "roughness": 0.2,
+        "density": 8000,
+        "youngs_modulus": 193,
+        "poisson_ratio": 0.29,
+        "yield_strength": 205,
+        "ultimate_strength": 515,
+    },
+    "cast_iron": {
+        "color": [0.4, 0.4, 0.42, 1.0],
+        "metallic": 0.85,
+        "roughness": 0.6,
+        "density": 7200,
+        "youngs_modulus": 170,
+        "poisson_ratio": 0.26,
+    },
+    "carbon_fiber": {
+        "color": [0.1, 0.1, 0.12, 1.0],
+        "metallic": 0.3,
+        "roughness": 0.15,
+        "density": 1600,
+        "youngs_modulus": 230,
+    },
+    "nylon": {
+        "color": [0.9, 0.88, 0.82, 1.0],
+        "metallic": 0.0,
+        "roughness": 0.5,
+        "density": 1150,
+        "youngs_modulus": 2.7,
+    },
+    "abs": {
+        "color": [0.95, 0.95, 0.9, 1.0],
+        "metallic": 0.0,
+        "roughness": 0.45,
+        "density": 1040,
+        "youngs_modulus": 2.3,
+    },
+    "pla": {
+        "color": [0.9, 0.9, 0.85, 1.0],
+        "metallic": 0.0,
+        "roughness": 0.4,
+        "density": 1240,
+        "youngs_modulus": 3.5,
+    },
+    "petg": {
+        "color": [0.85, 0.88, 0.92, 1.0],
+        "metallic": 0.05,
+        "roughness": 0.35,
+        "density": 1270,
+        "youngs_modulus": 2.2,
+    },
+    "concrete": {
+        "color": [0.7, 0.7, 0.68, 1.0],
+        "metallic": 0.0,
+        "roughness": 0.9,
+        "density": 2400,
+        "youngs_modulus": 30,
+    },
+    "granite": {
+        "color": [0.55, 0.5, 0.48, 1.0],
+        "metallic": 0.1,
+        "roughness": 0.7,
+        "density": 2700,
+        "youngs_modulus": 70,
+    },
+    "marble": {
+        "color": [0.92, 0.9, 0.88, 1.0],
+        "metallic": 0.05,
+        "roughness": 0.3,
+        "density": 2700,
+        "youngs_modulus": 70,
     },
 }

@@ -3,7 +3,6 @@
 
 278 .github/scripts/update_registry_dates.py
 562 QGIS/agent-harness/cli_anything/qgis/tests/test_full_e2e.py
-500 QGIS/agent-harness/cli_anything/qgis/utils/repl_skin.py
 567 anygen/agent-harness/cli_anything/anygen/utils/repl_skin.py
 329 audacity/agent-harness/cli_anything/audacity/core/effects.py
 802 audacity/agent-harness/cli_anything/audacity/tests/test_full_e2e.py
@@ -34,10 +33,8 @@
 567 drawio/agent-harness/cli_anything/drawio/utils/repl_skin.py
 347 eth2-quickstart/agent-harness/cli_anything/eth2_quickstart/tests/test_core.py
 567 eth2-quickstart/agent-harness/cli_anything/eth2_quickstart/utils/repl_skin.py
-532 exa/agent-harness/cli_anything/exa/utils/repl_skin.py
 606 firefly-iii/agent-harness/cli_anything/firefly_iii/tests/test_core.py
 597 firefly-iii/agent-harness/cli_anything/firefly_iii/tests/test_full_e2e.py
-658 firefly-iii/agent-harness/cli_anything/firefly_iii/utils/firefly_iii_backend.py
 647 freecad/agent-harness/cli_anything/freecad/core/materials.py
 1439 freecad/agent-harness/cli_anything/freecad/tests/test_core.py
 1230 freecad/agent-harness/cli_anything/freecad/tests/test_full_e2e.py
@@ -59,8 +56,6 @@
 567 krita/agent-harness/cli_anything/krita/utils/repl_skin.py
 417 libreoffice/agent-harness/cli_anything/libreoffice/core/importer.py
 567 libreoffice/agent-harness/cli_anything/libreoffice/utils/repl_skin.py
-676 lldb/agent-harness/cli_anything/lldb/core/session.py
-1001 lldb/agent-harness/cli_anything/lldb/dap.py
 1032 lldb/agent-harness/cli_anything/lldb/tests/test_core.py
 567 lldb/agent-harness/cli_anything/lldb/utils/repl_skin.py
 203 macrocli/agent-harness/cli_anything/macrocli/backends/file_transform.py
@@ -69,8 +64,6 @@
 246 macrocli/agent-harness/cli_anything/macrocli/backends/native_api.py
 587 macrocli/agent-harness/cli_anything/macrocli/backends/semantic_ui.py
 730 macrocli/agent-harness/cli_anything/macrocli/backends/visual_anchor.py
-764 macrocli/agent-harness/cli_anything/macrocli/core/recorder.py
-521 macrocli/agent-harness/cli_anything/macrocli/utils/repl_skin.py
 430 mailchimp/agent-harness/cli_anything/mailchimp/commands/automations.py
 553 mailchimp/agent-harness/cli_anything/mailchimp/commands/campaigns.py
 1518 mailchimp/agent-harness/cli_anything/mailchimp/commands/ecommerce.py
@@ -91,12 +84,10 @@
 398 musescore/agent-harness/cli_anything/musescore/tests/test_core.py
 567 musescore/agent-harness/cli_anything/musescore/utils/repl_skin.py
 346 n8n/agent-harness/cli_anything/n8n/tests/test_full_e2e.py
-703 n8n/agent-harness/cli_anything/n8n/utils/repl_skin.py
 567 novita/agent-harness/cli_anything/novita/utils/repl_skin.py
 568 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/replay.py
 1189 nsight-graphics/agent-harness/cli_anything/nsight_graphics/tests/test_core.py
 567 nsight-graphics/agent-harness/cli_anything/nsight_graphics/utils/repl_skin.py
-744 nslogger/agent-harness/cli_anything/nslogger/core/listener.py
 641 nslogger/agent-harness/cli_anything/nslogger/nslogger_cli.py
 922 nslogger/agent-harness/cli_anything/nslogger/tests/test_core.py
 567 nslogger/agent-harness/cli_anything/nslogger/utils/repl_skin.py
@@ -123,7 +114,6 @@
 567 sbox/agent-harness/cli_anything/sbox/utils/repl_skin.py
 567 seaclip/agent-harness/cli_anything/seaclip/utils/repl_skin.py
 1036 shotcut/agent-harness/cli_anything/shotcut/core/filters.py
-282 shotcut/agent-harness/cli_anything/shotcut/core/session.py
 663 shotcut/agent-harness/cli_anything/shotcut/core/transitions.py
 1630 shotcut/agent-harness/cli_anything/shotcut/shotcut_cli.py
 2005 shotcut/agent-harness/cli_anything/shotcut/tests/test_core.py
@@ -131,12 +121,8 @@
 567 shotcut/agent-harness/cli_anything/shotcut/utils/repl_skin.py
 241 shotcut/agent-harness/workflow_demo.py
 567 slay_the_spire_ii/agent-harness/cli_anything/slay_the_spire_ii/utils/repl_skin.py
-532 unimol_tools/agent-harness/cli_anything/unimol_tools/utils/repl_skin.py
-309 unimol_tools/agent-harness/cli_anything/unimol_tools/utils/unimol_backend.py
 1191 unrealinsights/agent-harness/cli_anything/unrealinsights/tests/test_core.py
 1088 unrealinsights/agent-harness/cli_anything/unrealinsights/unrealinsights_cli.py
-521 unrealinsights/agent-harness/cli_anything/unrealinsights/utils/repl_skin.py
-500 videocaptioner/agent-harness/cli_anything/videocaptioner/utils/repl_skin.py
 382 videocaptioner/agent-harness/cli_anything/videocaptioner/videocaptioner_cli.py
 567 wiremock/agent-harness/cli_anything/wiremock/utils/repl_skin.py
 567 zoom/agent-harness/cli_anything/zoom/utils/repl_skin.py

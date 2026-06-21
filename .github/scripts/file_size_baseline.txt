@@ -2,7 +2,6 @@
 # Format: <line_count> <path>; limit=200.
 
 1891 cli-hub/cli_hub/preview.py
-417 libreoffice/agent-harness/cli_anything/libreoffice/core/importer.py
 2265 mubu/agent-harness/mubu_probe.py
 1630 shotcut/agent-harness/cli_anything/shotcut/shotcut_cli.py
 705 zotero/agent-harness/cli_anything/zotero/tests/_helpers.py

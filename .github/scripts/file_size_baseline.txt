@@ -4,13 +4,11 @@
 278 .github/scripts/update_registry_dates.py
 562 QGIS/agent-harness/cli_anything/qgis/tests/test_full_e2e.py
 500 QGIS/agent-harness/cli_anything/qgis/utils/repl_skin.py
-442 anygen/agent-harness/cli_anything/anygen/utils/anygen_backend.py
 567 anygen/agent-harness/cli_anything/anygen/utils/repl_skin.py
 329 audacity/agent-harness/cli_anything/audacity/core/effects.py
 802 audacity/agent-harness/cli_anything/audacity/tests/test_full_e2e.py
 567 audacity/agent-harness/cli_anything/audacity/utils/repl_skin.py
 306 blender/agent-harness/cli_anything/blender/core/modifiers.py
-852 blender/agent-harness/cli_anything/blender/core/preview.py
 208 blender/agent-harness/cli_anything/blender/core/scene.py
 1345 blender/agent-harness/cli_anything/blender/tests/test_core.py
 1263 blender/agent-harness/cli_anything/blender/tests/test_full_e2e.py
@@ -53,7 +51,6 @@
 885 inkscape/agent-harness/cli_anything/inkscape/tests/test_full_e2e.py
 567 inkscape/agent-harness/cli_anything/inkscape/utils/repl_skin.py
 567 intelwatch/agent-harness/cli_anything/intelwatch/utils/repl_skin.py
-244 iterm2/agent-harness/cli_anything/iterm2_ctl/core/tmux.py
 567 iterm2/agent-harness/cli_anything/iterm2_ctl/utils/repl_skin.py
 208 kdenlive/agent-harness/cli_anything/kdenlive/core/project.py
 874 kdenlive/agent-harness/cli_anything/kdenlive/tests/test_full_e2e.py
@@ -98,7 +95,6 @@
 567 novita/agent-harness/cli_anything/novita/utils/repl_skin.py
 568 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/replay.py
 1189 nsight-graphics/agent-harness/cli_anything/nsight_graphics/tests/test_core.py
-511 nsight-graphics/agent-harness/cli_anything/nsight_graphics/utils/backend/discovery.py
 567 nsight-graphics/agent-harness/cli_anything/nsight_graphics/utils/repl_skin.py
 744 nslogger/agent-harness/cli_anything/nslogger/core/listener.py
 641 nslogger/agent-harness/cli_anything/nslogger/nslogger_cli.py
@@ -113,7 +109,6 @@
 844 openscreen/agent-harness/cli_anything/openscreen/openscreen_cli.py
 524 openscreen/agent-harness/cli_anything/openscreen/tests/test_full_e2e.py
 567 openscreen/agent-harness/cli_anything/openscreen/utils/repl_skin.py
-243 pm2/agent-harness/cli_anything/pm2/utils/pm2_backend.py
 567 pm2/agent-harness/cli_anything/pm2/utils/repl_skin.py
 516 renderdoc/agent-harness/cli_anything/renderdoc/core/preview.py
 567 renderdoc/agent-harness/cli_anything/renderdoc/utils/repl_skin.py

@@ -35,10 +35,8 @@
 568 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/replay.py
 1189 nsight-graphics/agent-harness/cli_anything/nsight_graphics/tests/test_core.py
 922 nslogger/agent-harness/cli_anything/nslogger/tests/test_core.py
-243 openscreen/agent-harness/cli_anything/openscreen/core/session.py
 524 openscreen/agent-harness/cli_anything/openscreen/tests/test_full_e2e.py
 516 renderdoc/agent-harness/cli_anything/renderdoc/core/preview.py
-341 sbox/agent-harness/cli_anything/sbox/core/session.py
 1291 sbox/agent-harness/cli_anything/sbox/tests/test_full_e2e.py
 1630 shotcut/agent-harness/cli_anything/shotcut/shotcut_cli.py
 2005 shotcut/agent-harness/cli_anything/shotcut/tests/test_core.py

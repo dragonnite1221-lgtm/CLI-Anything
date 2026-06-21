@@ -1,0 +1,66 @@
+# ruff: noqa: E501
+"""Parse NSLogger raw wire-protocol (.rawnsloggerdata) files."""
+
+from __future__ import annotations
+import struct
+from datetime import datetime, timezone
+from typing import Iterator, BinaryIO
+from .message import (
+    LogMessage,
+    PART_KEY_MESSAGE_TYPE,
+    PART_KEY_TIMESTAMP_S,
+    PART_KEY_TIMESTAMP_MS,
+    PART_KEY_TIMESTAMP_US,
+    PART_KEY_THREAD_ID,
+    PART_KEY_TAG,
+    PART_KEY_LEVEL,
+    PART_KEY_MESSAGE,
+    PART_KEY_IMAGE_WIDTH,
+    PART_KEY_IMAGE_HEIGHT,
+    PART_KEY_MESSAGE_SEQ,
+    PART_KEY_CLIENT_NAME,
+    PART_KEY_CLIENT_VERSION,
+    PART_KEY_OS_NAME,
+    PART_KEY_OS_VERSION,
+    PART_KEY_CLIENT_MODEL,
+    PART_TYPE_STRING,
+    PART_TYPE_BINARY,
+    PART_TYPE_INT16,
+    PART_TYPE_INT32,
+    PART_TYPE_INT64,
+    PART_TYPE_IMAGE,
+    MSG_TYPE_LOG,
+)
+
+__all__ = [
+    "BinaryIO",
+    "Iterator",
+    "LogMessage",
+    "MSG_TYPE_LOG",
+    "PART_KEY_CLIENT_MODEL",
+    "PART_KEY_CLIENT_NAME",
+    "PART_KEY_CLIENT_VERSION",
+    "PART_KEY_IMAGE_HEIGHT",
+    "PART_KEY_IMAGE_WIDTH",
+    "PART_KEY_LEVEL",
+    "PART_KEY_MESSAGE",
+    "PART_KEY_MESSAGE_SEQ",
+    "PART_KEY_MESSAGE_TYPE",
+    "PART_KEY_OS_NAME",
+    "PART_KEY_OS_VERSION",
+    "PART_KEY_TAG",
+    "PART_KEY_THREAD_ID",
+    "PART_KEY_TIMESTAMP_MS",
+    "PART_KEY_TIMESTAMP_S",
+    "PART_KEY_TIMESTAMP_US",
+    "PART_TYPE_BINARY",
+    "PART_TYPE_IMAGE",
+    "PART_TYPE_INT16",
+    "PART_TYPE_INT32",
+    "PART_TYPE_INT64",
+    "PART_TYPE_STRING",
+    "annotations",
+    "datetime",
+    "struct",
+    "timezone",
+]

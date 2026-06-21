@@ -1,0 +1,127 @@
+# ruff: noqa: F403, F405, E501
+from .browser_cli_base import *  # noqa: F403
+
+# fmt: off
+from .browser_cli_p2 import repl  # noqa: E402,E501
+# fmt: on
+
+
+def get_session() -> Session:
+    global _session
+    if _session is None:
+        _session = Session()
+    return _session
+
+
+def _print_dict(d: dict, indent: int = 0):
+    prefix = "  " * indent
+    for k, v in d.items():
+        if isinstance(v, dict):
+            click.echo(f"{prefix}{k}:")
+            _print_dict(v, indent + 1)
+        elif isinstance(v, list):
+            click.echo(f"{prefix}{k}:")
+            _print_list(v, indent + 1)
+        else:
+            click.echo(f"{prefix}{k}: {v}")
+
+
+def _print_list(items: list, indent: int = 0):
+    prefix = "  " * indent
+    for i, item in enumerate(items):
+        if isinstance(item, dict):
+            click.echo(f"{prefix}[{i}]")
+            _print_dict(item, indent + 1)
+        else:
+            click.echo(f"{prefix}- {item}")
+
+
+def output(data, message: str = ""):
+    if _json_output:
+        click.echo(json.dumps(data, indent=2, default=str))
+    else:
+        if message:
+            click.echo(message)
+        if isinstance(data, dict):
+            _print_dict(data)
+        elif isinstance(data, list):
+            _print_list(data)
+        else:
+            click.echo(str(data))
+
+
+def handle_error(func):
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except RuntimeError as e:
+            if _json_output:
+                click.echo(json.dumps({"error": str(e), "type": "runtime_error"}))
+            else:
+                click.echo(f"Error: {e}", err=True)
+            if not _repl_mode:
+                sys.exit(1)
+        except (ValueError, IndexError) as e:
+            if _json_output:
+                click.echo(json.dumps({"error": str(e), "type": type(e).__name__}))
+            else:
+                click.echo(f"Error: {e}", err=True)
+            if not _repl_mode:
+                sys.exit(1)
+
+    wrapper.__name__ = func.__name__
+    wrapper.__doc__ = func.__doc__
+    return wrapper
+
+
+@click.group(invoke_without_command=True)
+@click.option("--json", "use_json", is_flag=True, help="Output as JSON")
+@click.option(
+    "--daemon",
+    "use_daemon",
+    is_flag=True,
+    help="Use persistent daemon mode (faster for interactive use)",
+)
+@click.pass_context
+def cli(ctx, use_json, use_daemon):
+    """Browser CLI — Filesystem-first browser automation via DOMShell.
+
+    Run without a subcommand to enter interactive REPL mode.
+    """
+    global _json_output, _session, _availability_cached
+    _json_output = use_json
+
+    # Check DOMShell availability (skip for help/version to allow viewing docs without DOMShell)
+    # Cache the result for REPL mode to avoid repeated npx subprocess spawns
+    if "--help" not in sys.argv and "--version" not in sys.argv:
+        if _availability_cached is None:
+            _availability_cached = backend.is_available()
+        available, msg = _availability_cached
+        if not available:
+            if _json_output:
+                click.echo(json.dumps({"error": msg, "type": "dependency_error"}))
+            else:
+                click.echo(f"Error: {msg}", err=True)
+                click.echo(
+                    "\nInstall DOMShell Chrome extension:\n"
+                    "  https://chromewebstore.google.com/detail/domshell"
+                )
+            sys.exit(1)
+
+    # Initialize session with daemon mode
+    _session = get_session()
+    if use_daemon:
+        try:
+            backend.start_daemon()
+            _session.enable_daemon()
+            if not _json_output:
+                click.echo("Daemon mode: persistent MCP connection active")
+        except RuntimeError as e:
+            if _json_output:
+                click.echo(json.dumps({"error": str(e), "type": "daemon_error"}))
+            else:
+                click.echo(f"Daemon start failed: {e}", err=True)
+                click.echo("Falling back to per-command mode", err=True)
+
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(repl)

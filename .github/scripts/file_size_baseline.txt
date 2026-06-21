@@ -65,7 +65,6 @@
 676 lldb/agent-harness/cli_anything/lldb/core/session.py
 1001 lldb/agent-harness/cli_anything/lldb/dap.py
 1032 lldb/agent-harness/cli_anything/lldb/tests/test_core.py
-486 lldb/agent-harness/cli_anything/lldb/tests/test_full_e2e.py
 567 lldb/agent-harness/cli_anything/lldb/utils/repl_skin.py
 203 macrocli/agent-harness/cli_anything/macrocli/backends/file_transform.py
 561 macrocli/agent-harness/cli_anything/macrocli/backends/gui_agent.py

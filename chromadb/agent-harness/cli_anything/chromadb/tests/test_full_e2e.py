@@ -1,77 +1,6 @@
-#!/usr/bin/env python3
-"""End-to-end tests for the ChromaDB CLI-Anything harness.
+# ruff: noqa: F403, F405, E501
+from .test_full_e2e_helpers import *  # noqa: F403
 
-These tests call the REAL ChromaDB server at localhost:8000 via subprocess,
-exercising the installed CLI binary. They validate exit codes, JSON output
-parsing, and actual server responses.
-
-Requirements:
-- ChromaDB running at localhost:8000
-- cli-anything-chromadb installed (pip install -e .)
-"""
-
-import json
-import os
-import shutil
-import subprocess
-import sys
-
-import pytest
-
-
-# ============================================================================
-# Helper: resolve the CLI binary
-# ============================================================================
-
-def _resolve_cli():
-    """Find the cli-anything-chromadb binary.
-
-    Checks in order:
-    1. Installed console_script on PATH
-    2. python -m cli_anything.chromadb fallback
-    """
-    # Check if the console script is on PATH
-    cli_path = shutil.which("cli-anything-chromadb")
-    if cli_path:
-        return [cli_path]
-    # Fallback: run as module
-    return [sys.executable, "-m", "cli_anything.chromadb"]
-
-
-CLI = _resolve_cli()
-
-
-def _run(args, timeout=15):
-    """Run the CLI with the given args and return CompletedProcess."""
-    cmd = CLI + args
-    return subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
-
-
-def _chromadb_available():
-    """Check if ChromaDB is reachable at localhost:8000."""
-    try:
-        import requests
-        r = requests.get("http://localhost:8000/api/v2/heartbeat", timeout=3)
-        return r.status_code == 200
-    except Exception:
-        return False
-
-
-# Skip all E2E tests if ChromaDB is not running
-pytestmark = pytest.mark.skipif(
-    not _chromadb_available(),
-    reason="ChromaDB server not available at localhost:8000"
-)
-
-
-# ============================================================================
-# 1. CLI basic invocation
-# ============================================================================
 
 class TestCLIBasic:
     """Test basic CLI invocation and help."""
@@ -94,10 +23,6 @@ class TestCLIBasic:
         result = _run(["nonexistent-command"])
         assert result.returncode != 0
 
-
-# ============================================================================
-# 2. Server commands (real ChromaDB)
-# ============================================================================
 
 class TestServerE2E:
     """Test server heartbeat and version against real ChromaDB."""
@@ -125,10 +50,6 @@ class TestServerE2E:
         result = _run(["server", "heartbeat"])
         assert result.returncode == 0
 
-
-# ============================================================================
-# 3. Collection commands (real ChromaDB)
-# ============================================================================
 
 class TestCollectionE2E:
     """Test collection operations against real ChromaDB."""
@@ -166,13 +87,11 @@ class TestCollectionE2E:
 
     def test_collection_info_nonexistent(self):
         """collection info for a nonexistent collection should return error."""
-        result = _run(["--json", "collection", "info", "nonexistent_collection_xyz_999"])
+        result = _run(
+            ["--json", "collection", "info", "nonexistent_collection_xyz_999"]
+        )
         assert result.returncode != 0
 
-
-# ============================================================================
-# 4. JSON output validity
-# ============================================================================
 
 class TestJSONOutputValidity:
     """Verify that --json flag always produces parseable JSON."""
@@ -198,7 +117,9 @@ class TestJSONOutputValidity:
 
     def test_error_json_parseable(self):
         """Even errors in --json mode should produce parseable JSON."""
-        result = _run(["--json", "collection", "info", "nonexistent_collection_xyz_999"])
+        result = _run(
+            ["--json", "collection", "info", "nonexistent_collection_xyz_999"]
+        )
         # Should fail but output should still be JSON
         if result.stdout.strip():
             data = json.loads(result.stdout)

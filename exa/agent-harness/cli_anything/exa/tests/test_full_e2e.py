@@ -1,71 +1,6 @@
-"""
-test_full_e2e.py — End-to-end tests against the real Exa API.
+# ruff: noqa: F403, F405, E501
+from .test_full_e2e_helpers import *  # noqa: F403
 
-Requires: EXA_API_KEY set in the environment.
-Run with: pytest tests/test_full_e2e.py -v
-
-These tests make real API calls and consume credits. They verify that:
-  - The CLI produces parseable JSON output
-  - Results contain expected fields
-  - All subcommands route correctly to the API
-"""
-
-from __future__ import annotations
-
-import json
-import os
-import subprocess
-import sys
-
-import pytest
-
-from click.testing import CliRunner
-from cli_anything.exa.exa_cli import cli
-
-
-# ---------------------------------------------------------------------------
-# Skip guard
-# ---------------------------------------------------------------------------
-
-pytestmark = pytest.mark.skipif(
-    not os.environ.get("EXA_API_KEY"),
-    reason="EXA_API_KEY not set — skipping E2E tests",
-)
-
-
-@pytest.fixture()
-def runner():
-    return CliRunner()
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _resolve_cli() -> list[str]:
-    """Return the command prefix to invoke cli-anything-exa."""
-    import shutil
-
-    cmd = "cli-anything-exa"
-    if shutil.which(cmd):
-        return [cmd]
-    # Fall back to module invocation
-    return [sys.executable, "-m", "cli_anything.exa"]
-
-
-def _run(*args: str) -> subprocess.CompletedProcess:
-    prefix = _resolve_cli()
-    return subprocess.run(
-        prefix + list(args),
-        capture_output=True,
-        text=True,
-        env={**os.environ},
-    )
-
-
-# ---------------------------------------------------------------------------
-# server status
-# ---------------------------------------------------------------------------
 
 class TestServerStatusE2E:
     def test_status_ok(self):
@@ -81,10 +16,6 @@ class TestServerStatusE2E:
         assert "message" in data
 
 
-# ---------------------------------------------------------------------------
-# search
-# ---------------------------------------------------------------------------
-
 class TestSearchE2E:
     def test_basic_search_returns_results(self, runner):
         result = runner.invoke(cli, ["--json", "search", "large language models 2024"])
@@ -94,7 +25,9 @@ class TestSearchE2E:
         assert len(data["results"]) > 0
 
     def test_search_result_has_required_fields(self, runner):
-        result = runner.invoke(cli, ["--json", "search", "AI safety research", "--num-results", "3"])
+        result = runner.invoke(
+            cli, ["--json", "search", "AI safety research", "--num-results", "3"]
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         r = data["results"][0]
@@ -103,7 +36,8 @@ class TestSearchE2E:
 
     def test_search_highlights_content(self, runner):
         result = runner.invoke(
-            cli, ["--json", "search", "neural search algorithms", "--content", "highlights"]
+            cli,
+            ["--json", "search", "neural search algorithms", "--content", "highlights"],
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -114,7 +48,16 @@ class TestSearchE2E:
 
     def test_search_text_content(self, runner):
         result = runner.invoke(
-            cli, ["--json", "search", "machine learning overview", "--content", "text", "--num-results", "1"]
+            cli,
+            [
+                "--json",
+                "search",
+                "machine learning overview",
+                "--content",
+                "text",
+                "--num-results",
+                "1",
+            ],
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -124,7 +67,16 @@ class TestSearchE2E:
 
     def test_search_category_news(self, runner):
         result = runner.invoke(
-            cli, ["--json", "search", "AI regulation", "--category", "news", "--num-results", "3"]
+            cli,
+            [
+                "--json",
+                "search",
+                "AI regulation",
+                "--category",
+                "news",
+                "--num-results",
+                "3",
+            ],
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -133,7 +85,15 @@ class TestSearchE2E:
     def test_search_domain_filter(self, runner):
         result = runner.invoke(
             cli,
-            ["--json", "search", "machine learning", "--include-domains", "arxiv.org", "--num-results", "3"],
+            [
+                "--json",
+                "search",
+                "machine learning",
+                "--include-domains",
+                "arxiv.org",
+                "--num-results",
+                "3",
+            ],
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
@@ -141,7 +101,9 @@ class TestSearchE2E:
             assert "arxiv.org" in r["url"]
 
     def test_search_num_results_respected(self, runner):
-        result = runner.invoke(cli, ["--json", "search", "AI research", "--num-results", "5"])
+        result = runner.invoke(
+            cli, ["--json", "search", "AI research", "--num-results", "5"]
+        )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data["results"]) <= 5
@@ -151,10 +113,6 @@ class TestSearchE2E:
         assert result.exit_code == 0
         assert "http" in result.output  # URL is shown
 
-
-# ---------------------------------------------------------------------------
-# contents
-# ---------------------------------------------------------------------------
 
 class TestContentsE2E:
     def test_basic_contents(self, runner):
@@ -179,16 +137,19 @@ class TestContentsE2E:
     def test_contents_multiple_urls(self, runner):
         result = runner.invoke(
             cli,
-            ["--json", "contents", "https://exa.ai", "https://arxiv.org", "--content", "highlights"],
+            [
+                "--json",
+                "contents",
+                "https://exa.ai",
+                "https://arxiv.org",
+                "--content",
+                "highlights",
+            ],
         )
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert len(data["results"]) >= 1
 
-
-# ---------------------------------------------------------------------------
-# subprocess (entry-point) smoke test
-# ---------------------------------------------------------------------------
 
 class TestEntryPoint:
     def test_cli_entry_point_help(self):

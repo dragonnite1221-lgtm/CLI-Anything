@@ -7,8 +7,6 @@
 627 freecad/agent-harness/cli_anything/freecad/utils/freecad_macro_gen.py
 448 kdenlive/agent-harness/cli_anything/kdenlive/utils/mlt_xml.py
 417 libreoffice/agent-harness/cli_anything/libreoffice/core/importer.py
-203 macrocli/agent-harness/cli_anything/macrocli/backends/file_transform.py
-205 macrocli/agent-harness/cli_anything/macrocli/backends/gui_macro.py
 2265 mubu/agent-harness/mubu_probe.py
 568 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/replay.py
 516 renderdoc/agent-harness/cli_anything/renderdoc/core/preview.py

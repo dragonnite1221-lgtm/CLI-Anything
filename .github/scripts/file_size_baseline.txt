@@ -2,9 +2,7 @@
 # Format: <line_count> <path>; limit=200.
 
 278 .github/scripts/update_registry_dates.py
-329 audacity/agent-harness/cli_anything/audacity/core/effects.py
 802 audacity/agent-harness/cli_anything/audacity/tests/test_full_e2e.py
-306 blender/agent-harness/cli_anything/blender/core/modifiers.py
 1345 blender/agent-harness/cli_anything/blender/tests/test_core.py
 1263 blender/agent-harness/cli_anything/blender/tests/test_full_e2e.py
 468 cli-anything-plugin/preview_bundle.py
@@ -23,11 +21,9 @@
 347 eth2-quickstart/agent-harness/cli_anything/eth2_quickstart/tests/test_core.py
 606 firefly-iii/agent-harness/cli_anything/firefly_iii/tests/test_core.py
 597 firefly-iii/agent-harness/cli_anything/firefly_iii/tests/test_full_e2e.py
-647 freecad/agent-harness/cli_anything/freecad/core/materials.py
 1439 freecad/agent-harness/cli_anything/freecad/tests/test_core.py
 1230 freecad/agent-harness/cli_anything/freecad/tests/test_full_e2e.py
 627 freecad/agent-harness/cli_anything/freecad/utils/freecad_macro_gen.py
-382 gimp/agent-harness/cli_anything/gimp/core/filters.py
 623 godot/agent-harness/cli_anything/godot/tests/test_full_e2e.py
 885 inkscape/agent-harness/cli_anything/inkscape/tests/test_full_e2e.py
 874 kdenlive/agent-harness/cli_anything/kdenlive/tests/test_full_e2e.py
@@ -44,7 +40,6 @@
 553 mailchimp/agent-harness/cli_anything/mailchimp/commands/campaigns.py
 1518 mailchimp/agent-harness/cli_anything/mailchimp/commands/ecommerce.py
 319 mailchimp/agent-harness/cli_anything/mailchimp/commands/file_manager.py
-214 mailchimp/agent-harness/cli_anything/mailchimp/commands/landing_pages.py
 1758 mailchimp/agent-harness/cli_anything/mailchimp/commands/lists.py
 353 mailchimp/agent-harness/cli_anything/mailchimp/commands/reporting.py
 656 mailchimp/agent-harness/cli_anything/mailchimp/commands/reports.py
@@ -69,18 +64,14 @@
 530 safari/agent-harness/scripts/extract_tools.py
 208 sbox/agent-harness/cli_anything/sbox/core/input_config.py
 417 sbox/agent-harness/cli_anything/sbox/core/project.py
-1407 sbox/agent-harness/cli_anything/sbox/core/scene.py
 341 sbox/agent-harness/cli_anything/sbox/core/session.py
 1291 sbox/agent-harness/cli_anything/sbox/tests/test_full_e2e.py
-1036 shotcut/agent-harness/cli_anything/shotcut/core/filters.py
-663 shotcut/agent-harness/cli_anything/shotcut/core/transitions.py
 1630 shotcut/agent-harness/cli_anything/shotcut/shotcut_cli.py
 2005 shotcut/agent-harness/cli_anything/shotcut/tests/test_core.py
 1239 shotcut/agent-harness/cli_anything/shotcut/tests/test_full_e2e.py
 241 shotcut/agent-harness/workflow_demo.py
 1191 unrealinsights/agent-harness/cli_anything/unrealinsights/tests/test_core.py
 1088 unrealinsights/agent-harness/cli_anything/unrealinsights/unrealinsights_cli.py
-382 videocaptioner/agent-harness/cli_anything/videocaptioner/videocaptioner_cli.py
 705 zotero/agent-harness/cli_anything/zotero/tests/_helpers.py
 523 zotero/agent-harness/cli_anything/zotero/tests/test_cli_entrypoint.py
 701 zotero/agent-harness/cli_anything/zotero/tests/test_core.py

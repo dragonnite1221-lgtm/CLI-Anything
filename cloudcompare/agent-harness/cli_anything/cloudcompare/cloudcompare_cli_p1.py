@@ -2,7 +2,6 @@
 from .cloudcompare_cli_base import *  # noqa: F403
 
 # fmt: off
-from .cloudcompare_cli_p2 import project, repl  # noqa: E402,E501
 # fmt: on
 
 
@@ -84,3 +83,7 @@ def cli(ctx: click.Context, project: Optional[str], json_output: bool) -> None:
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(repl)
+
+
+# deferred to break import cycle  # noqa: E402
+from .cloudcompare_cli_p2 import project, repl  # noqa: E402,E501

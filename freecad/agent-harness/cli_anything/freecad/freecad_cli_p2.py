@@ -3,7 +3,6 @@ from .freecad_cli_base import *  # noqa: F403
 
 # fmt: off
 from .freecad_cli_p1 import get_session, output  # noqa: E402,E501
-from .freecad_cli_p3 import repl  # noqa: E402,E501
 # fmt: on
 
 
@@ -135,4 +134,6 @@ def cli(
         ctx.call_on_close(_auto_save)
 
     if ctx.invoked_subcommand is None:
+        from .freecad_cli_p3 import repl  # lazy: breaks p2<->p3 import cycle
+
         ctx.invoke(repl, project_path=project)

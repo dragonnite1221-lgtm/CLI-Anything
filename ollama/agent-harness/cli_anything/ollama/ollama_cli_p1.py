@@ -2,7 +2,6 @@
 from .ollama_cli_base import *  # noqa: F403
 
 # fmt: off
-from .ollama_cli_p2 import repl  # noqa: E402,E501
 # fmt: on
 
 
@@ -88,3 +87,7 @@ def cli(ctx, use_json, host):
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(repl)
+
+
+# fmt: off — deferred to break import cycle
+from .ollama_cli_p2 import repl  # noqa: E402,E501

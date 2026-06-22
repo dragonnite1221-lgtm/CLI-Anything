@@ -2,7 +2,6 @@
 from .rms_cli_base import *  # noqa: F403
 
 # fmt: off
-from .rms_cli_p2 import repl  # noqa: E402,E501
 # fmt: on
 
 
@@ -85,3 +84,7 @@ def cli(ctx, use_json, token_opt):
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(repl)
+
+
+# fmt: off — deferred to break import cycle
+from .rms_cli_p2 import repl  # noqa: E402,E501

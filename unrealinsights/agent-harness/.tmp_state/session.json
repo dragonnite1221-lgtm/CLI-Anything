@@ -1,0 +1,13 @@
+{
+  "trace_path": "/tmp/pytest-of-root/pytest-1189/test_store_list_latest_smoke0/Store/001/session.utrace",
+  "insights_exe": null,
+  "trace_server_exe": null,
+  "capture_pid": null,
+  "capture_target_exe": null,
+  "capture_target_args": [],
+  "capture_project_path": null,
+  "capture_engine_root": null,
+  "capture_trace_path": null,
+  "capture_channels": null,
+  "capture_started_at": null
+}

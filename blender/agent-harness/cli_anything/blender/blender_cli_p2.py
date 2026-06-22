@@ -3,7 +3,6 @@ from .blender_cli_base import *  # noqa: F403
 
 # fmt: off
 from .blender_cli_p1 import get_session  # noqa: E402,E501
-from .blender_cli_p3 import repl  # noqa: E402,E501
 # fmt: on
 
 
@@ -71,3 +70,7 @@ def cli(ctx, use_json, project_path, dry_run):
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(repl, project_path=None)
+
+
+# fmt: off — deferred to break import cycle
+from .blender_cli_p3 import repl  # noqa: E402,E501

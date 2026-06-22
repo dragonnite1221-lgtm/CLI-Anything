@@ -3,7 +3,6 @@ from .sbox_cli_base import *  # noqa: F403
 
 # fmt: off
 from .sbox_cli_p1 import _resolve_project_dir  # noqa: E402,E501
-from .sbox_cli_p3 import repl  # noqa: E402,E501
 # fmt: on
 
 
@@ -71,3 +70,7 @@ def cli(ctx, json_output, project_path):
     ctx.obj["project_path"] = project_path
     if ctx.invoked_subcommand is None:
         ctx.invoke(repl)
+
+
+# fmt: off — deferred to break import cycle
+from .sbox_cli_p3 import repl  # noqa: E402,E501

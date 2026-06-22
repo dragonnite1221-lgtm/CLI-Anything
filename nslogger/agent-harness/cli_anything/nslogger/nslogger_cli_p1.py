@@ -1,7 +1,6 @@
 # ruff: noqa: F403, F405, E501
 from .nslogger_cli_base import *  # noqa: F403
 # fmt: off
-from .nslogger_cli_p2 import _run_repl  # noqa: E402,E501
 # fmt: on
 
 
@@ -90,3 +89,7 @@ def cli(ctx):
     ctx.ensure_object(dict)
     if ctx.invoked_subcommand is None:
         _run_repl(ctx)
+
+
+# fmt: off — deferred to break import cycle
+from .nslogger_cli_p2 import _run_repl  # noqa: E402,E501

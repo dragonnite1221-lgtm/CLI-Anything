@@ -4,7 +4,6 @@ from .zotero_cli_base import *  # noqa: F403
 # fmt: off
 from .zotero_cli_p1 import RootCliConfig, _repl_root_args, current_session  # noqa: E402,E501
 from .zotero_cli_p3 import _handle_repl_builtin  # noqa: E402,E501
-from .zotero_cli_p5 import dispatch  # noqa: E402,E501
 # fmt: on
 
 
@@ -127,3 +126,7 @@ def run_repl(config: RootCliConfig | None = None) -> int:
             skin.warning(f"command exited with status {result}")
         else:
             session_mod.append_command_history(line)
+
+
+# fmt: off — deferred to break import cycle
+from .zotero_cli_p5 import dispatch  # noqa: E402,E501

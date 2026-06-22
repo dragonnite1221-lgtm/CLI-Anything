@@ -2,7 +2,6 @@
 from .musescore_cli_base import *  # noqa: F403
 
 # fmt: off
-from .musescore_cli_p2 import repl  # noqa: E402,E501
 # fmt: on
 
 
@@ -123,3 +122,7 @@ def cli(ctx, use_json, project_path, dry_run):
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(repl)
+
+
+# deferred to break import cycle  # noqa: E402
+from .musescore_cli_p2 import repl  # noqa: E402,E501

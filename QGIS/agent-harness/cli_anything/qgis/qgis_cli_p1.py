@@ -2,7 +2,6 @@
 from .qgis_cli_base import *  # noqa: F403
 
 # fmt: off
-from .qgis_cli_p2 import repl  # noqa: E402,E501
 # fmt: on
 
 
@@ -144,3 +143,7 @@ def cli(ctx, use_json, project_path):
 @cli.group()
 def session():
     """Session state and history commands."""
+
+
+# deferred to break import cycle  # noqa: E402
+from .qgis_cli_p2 import repl  # noqa: E402,E501

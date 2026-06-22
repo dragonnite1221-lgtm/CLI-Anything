@@ -2,7 +2,6 @@
 from .renderdoc_cli_base import *  # noqa: F403
 
 # fmt: off
-from .renderdoc_cli_p2 import repl  # noqa: E402,E501
 # fmt: on
 
 
@@ -119,3 +118,7 @@ def cli(ctx, capture, json_mode, debug):
 
     if ctx.invoked_subcommand is None:
         ctx.invoke(repl)
+
+
+# deferred to break import cycle  # noqa: E402
+from .renderdoc_cli_p2 import repl  # noqa: E402,E501

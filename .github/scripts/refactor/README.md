@@ -14,3 +14,13 @@ regression — never blindly.
 - `split_collection.py` — split a giant List/Dict literal (any depth); verified identical.
 - `split_fstring.py` — split a giant f-string into helper slices.
 - `reexport_pkg.py` — rewrite a façade to re-export its parts' public surface.
+
+## Import-cycle tooling
+
+- `cycle_fix.py <pkgdir>` — report top-level cross-part import back-edges (cycle closers).
+- `break_cycle.py <pkgdir>` — break cycles by deferring the runtime-only import below
+  the hub's definitions (skips symbols used as decorators / at module level).
+
+Pair with `.github/scripts/check_imports.py` (the import-integrity gate) which imports
+every package and fails on structural errors (cycles, dropped re-exports) the
+line-count gate cannot see.

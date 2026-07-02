@@ -23,7 +23,6 @@ _reload_security_module()
 from cli_anything.browser.utils.security import (
     get_allowed_schemes,
     get_blocked_schemes,
-    is_private_network_blocked,
     sanitize_dom_text,
     validate_url,
 )
@@ -171,81 +170,8 @@ class TestURLValidation:
         assert is_valid
         assert error == ""
 
-    def test_ipv4_localhost(self):
-        """127.0.0.1 should be detected (blocking depends on env var)."""
-        is_valid, error = validate_url("http://127.0.0.1:8080")
-        # By default, private networks are NOT blocked
-        # So this should pass unless env var is set
-        assert isinstance(is_valid, bool)
-
-    def test_hostname_localhost(self):
-        """localhost hostname should be detected (blocking depends on env var)."""
-        is_valid, error = validate_url("http://localhost:3000")
-        # By default, private networks are NOT blocked
-        assert isinstance(is_valid, bool)
-
-    def test_private_ip_192_168(self):
-        """192.168.x.x should be detected (blocking depends on env var)."""
-        is_valid, error = validate_url("http://192.168.1.1/admin")
-        # By default, private networks are NOT blocked
-        assert isinstance(is_valid, bool)
-
-    def test_private_ip_10_0(self):
-        """10.x.x.x should be detected (blocking depends on env var)."""
-        is_valid, error = validate_url("http://10.0.0.1/secret")
-        # By default, private networks are NOT blocked
-        assert isinstance(is_valid, bool)
-
-    def test_private_ip_172_16(self):
-        """172.16-31.x.x should be detected (blocking depends on env var)."""
-        is_valid, error = validate_url("http://172.16.0.1/internal")
-        # By default, private networks are NOT blocked
-        assert isinstance(is_valid, bool)
-
-
-class TestPrivateNetworkBlocking:
-    """Test private network blocking (controlled by env var)."""
-
-    def test_private_network_blocking_disabled_by_default(self, monkeypatch):
-        """By default, private network blocking should be disabled."""
-        # Ensure env var is not set
-        monkeypatch.delenv("CLI_ANYTHING_BROWSER_BLOCK_PRIVATE", raising=False)
-        _reload_security_module()
-        assert not is_private_network_blocked()
-
-    def test_localhost_not_blocked_by_default(self, monkeypatch):
-        """localhost should not be blocked by default."""
-        monkeypatch.delenv("CLI_ANYTHING_BROWSER_BLOCK_PRIVATE", raising=False)
-        _reload_security_module()
-        is_valid, error = validate_url("http://localhost:3000")
-        assert is_valid
-        assert error == ""
-
-    def test_127_0_0_1_not_blocked_by_default(self, monkeypatch):
-        """127.0.0.1 should not be blocked by default."""
-        monkeypatch.delenv("CLI_ANYTHING_BROWSER_BLOCK_PRIVATE", raising=False)
-        _reload_security_module()
-        is_valid, error = validate_url("http://127.0.0.1:8080")
-        assert is_valid
-        assert error == ""
-
-    def test_private_network_blocking_enabled(self, monkeypatch):
-        """When enabled, localhost should be blocked."""
-        monkeypatch.setenv("CLI_ANYTHING_BROWSER_BLOCK_PRIVATE", "true")
-        _reload_security_module()
-        assert is_private_network_blocked()
-
-        is_valid, error = validate_url("http://localhost:3000")
-        assert not is_valid
-        assert "blocked" in error.lower()
-
-    def test_127_0_0_1_blocked_when_enabled(self, monkeypatch):
-        """When enabled, 127.0.0.1 should be blocked."""
-        monkeypatch.setenv("CLI_ANYTHING_BROWSER_BLOCK_PRIVATE", "true")
-        _reload_security_module()
-        is_valid, error = validate_url("http://127.0.0.1:8080")
-        assert not is_valid
-        assert "blocked" in error.lower()
+    # Private-network / SSRF blocking (default-on, all IP encodings) is covered
+    # comprehensively in test_net_guard.py.
 
 
 class TestDOMSanitization:
@@ -348,7 +274,8 @@ class TestUtilityFunctions:
         assert "https" in schemes
 
     def test_is_private_network_blocked_default(self, monkeypatch):
-        """By default, private network blocking should be False."""
+        """Private-network blocking is ENABLED by default (M-3)."""
         monkeypatch.delenv("CLI_ANYTHING_BROWSER_BLOCK_PRIVATE", raising=False)
+        monkeypatch.delenv("CLI_ANYTHING_BROWSER_ALLOW_PRIVATE", raising=False)
         _reload_security_module()
-        assert not is_private_network_blocked()
+        assert security.is_private_network_blocked() is True

@@ -3,26 +3,31 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
+from types import ModuleType
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _load_sync_helpers():
-    namespace: dict[str, object] = {"__file__": str(REPO_ROOT / ".github" / "scripts" / "sync_root_skills.py")}
+def _load_sync_helpers() -> ModuleType:
     sync_script = REPO_ROOT / ".github" / "scripts" / "sync_root_skills.py"
-    exec(sync_script.read_text(encoding="utf-8"), namespace)
-    return namespace
+    spec = importlib.util.spec_from_file_location("sync_root_skills", sync_script)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load module from {sync_script}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def main() -> int:
     sync = _load_sync_helpers()
-    discover_sources = sync["_discover_sources"]
-    canonical_skill_id = sync["_canonical_skill_id"]
-    rewrite_name_frontmatter = sync["_rewrite_name_frontmatter"]
-    root_skills_dir = sync["ROOT_SKILLS_DIR"]
+    discover_sources = sync._discover_sources
+    canonical_skill_id = sync._canonical_skill_id
+    rewrite_name_frontmatter = sync._rewrite_name_frontmatter
+    root_skills_dir = sync.ROOT_SKILLS_DIR
 
     errors: list[str] = []
     for source in discover_sources():

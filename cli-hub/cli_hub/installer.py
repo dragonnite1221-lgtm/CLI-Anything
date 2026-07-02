@@ -161,10 +161,14 @@ def _bundled_update(cli):
 # ── pip operations (harness CLIs) ──
 
 
+def _pip_specs(install_cmd):
+    # shlex parse + drop dash tokens: tolerates whitespace, blocks smuggled pip flags (L-5).
+    return [t for t in shlex.split(install_cmd or "")[2:] if not t.startswith("-")]
+
+
 def _pip_install(cli):
-    install_cmd = cli["install_cmd"]
     result = subprocess.run(
-        [sys.executable, "-m", "pip", "install"] + install_cmd.replace("pip install ", "").split(),
+        [sys.executable, "-m", "pip", "install", *_pip_specs(cli["install_cmd"])],
         capture_output=True, text=True
     )
     if result.returncode == 0:
@@ -184,10 +188,8 @@ def _pip_uninstall(cli):
 
 
 def _pip_update(cli):
-    install_cmd = cli["install_cmd"]
     result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall"]
-        + install_cmd.replace("pip install ", "").split(),
+        [sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", *_pip_specs(cli["install_cmd"])],
         capture_output=True, text=True
     )
     if result.returncode == 0:

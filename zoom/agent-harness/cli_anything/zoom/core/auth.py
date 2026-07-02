@@ -8,11 +8,10 @@ Handles:
 - Auth status checking
 """
 
-import webbrowser
-import http.server
-import threading
-from urllib.parse import urlparse, parse_qs
+import secrets
+from urllib.parse import urlparse
 
+from cli_anything.zoom.core._oauth_callback import capture_oauth_callback
 from cli_anything.zoom.utils.zoom_backend import (
     load_config, save_config, load_tokens, save_tokens,
     get_authorize_url, exchange_code, get_current_user,
@@ -70,59 +69,22 @@ def login() -> dict:
     parsed = urlparse(redirect_uri)
     port = parsed.port or 4199
 
-    auth_url = get_authorize_url(client_id, redirect_uri)
+    # CSRF state: an unguessable token echoed back on the callback and verified
+    # there, so an injected authorization code with the wrong state is rejected.
+    state = secrets.token_urlsafe(32)
+    auth_url = get_authorize_url(client_id, redirect_uri, state=state)
 
-    # Capture authorization code via local HTTP server
-    auth_code = [None]
-    auth_error = [None]
+    # Open the browser and capture the callback (validates state, escapes errors).
+    auth_code, auth_error = capture_oauth_callback(auth_url, port, expected_state=state)
 
-    class CallbackHandler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            query = parse_qs(urlparse(self.path).query)
-            if "code" in query:
-                auth_code[0] = query["code"][0]
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(
-                    b"<html><body><h2>Authorization successful!</h2>"
-                    b"<p>You can close this window and return to the CLI.</p>"
-                    b"</body></html>"
-                )
-            elif "error" in query:
-                auth_error[0] = query.get("error_description", query["error"])[0]
-                self.send_response(400)
-                self.send_header("Content-Type", "text/html")
-                self.end_headers()
-                self.wfile.write(
-                    f"<html><body><h2>Authorization failed: {auth_error[0]}</h2>"
-                    .encode()
-                )
-            else:
-                self.send_response(400)
-                self.end_headers()
+    if auth_error:
+        raise RuntimeError(f"Authorization failed: {auth_error}")
 
-        def log_message(self, format, *args):
-            pass  # Suppress server logs
-
-    server = http.server.HTTPServer(("127.0.0.1", port), CallbackHandler)
-    server.timeout = 120  # 2 minutes to complete auth
-
-    # Open browser
-    webbrowser.open(auth_url)
-
-    # Wait for callback
-    server.handle_request()
-    server.server_close()
-
-    if auth_error[0]:
-        raise RuntimeError(f"Authorization failed: {auth_error[0]}")
-
-    if not auth_code[0]:
+    if not auth_code:
         raise RuntimeError("Authorization timed out. Please try again.")
 
     # Exchange code for tokens
-    tokens = exchange_code(client_id, client_secret, auth_code[0], redirect_uri)
+    tokens = exchange_code(client_id, client_secret, auth_code, redirect_uri)
     save_tokens(tokens)
 
     # Verify by getting user info

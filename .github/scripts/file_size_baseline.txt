@@ -38,10 +38,9 @@
 468 blender/agent-harness/cli_anything/blender/utils/preview_bundle.py
 434 browser/agent-harness/cli_anything/browser/browser_cli.py
 389 browser/agent-harness/cli_anything/browser/tests/test_core.py
-354 browser/agent-harness/cli_anything/browser/tests/test_security.py
+281 browser/agent-harness/cli_anything/browser/tests/test_security.py
 430 browser/agent-harness/cli_anything/browser/utils/domshell_backend.py
 567 browser/agent-harness/cli_anything/browser/utils/repl_skin.py
-237 browser/agent-harness/cli_anything/browser/utils/security.py
 405 chromadb/agent-harness/cli_anything/chromadb/tests/test_core.py
 205 chromadb/agent-harness/cli_anything/chromadb/tests/test_full_e2e.py
 567 chromadb/agent-harness/cli_anything/chromadb/utils/repl_skin.py
@@ -354,12 +353,11 @@
 375 wiremock/agent-harness/cli_anything/wiremock/tests/test_full_e2e.py
 567 wiremock/agent-harness/cli_anything/wiremock/utils/repl_skin.py
 647 wiremock/agent-harness/cli_anything/wiremock/wiremock_cli.py
-218 zoom/agent-harness/cli_anything/zoom/core/auth.py
 242 zoom/agent-harness/cli_anything/zoom/core/meetings.py
 208 zoom/agent-harness/cli_anything/zoom/core/recordings.py
 523 zoom/agent-harness/cli_anything/zoom/tests/test_core.py
 567 zoom/agent-harness/cli_anything/zoom/utils/repl_skin.py
-238 zoom/agent-harness/cli_anything/zoom/utils/zoom_backend.py
+236 zoom/agent-harness/cli_anything/zoom/utils/zoom_backend.py
 517 zoom/agent-harness/cli_anything/zoom/zoom_cli.py
 252 zotero/agent-harness/cli_anything/zotero/core/catalog.py
 664 zotero/agent-harness/cli_anything/zotero/core/imports.py

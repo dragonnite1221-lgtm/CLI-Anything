@@ -65,7 +65,7 @@ def _make_pkcs12_identity() -> tuple[str, str, str]:
     cert = os.path.join(tmp_dir, "server.crt")
     key = os.path.join(tmp_dir, "server.key")
     p12 = os.path.join(tmp_dir, "server.p12")
-    password = "nslogger-cli"
+    password = base64.b16encode(os.urandom(12)).decode("ascii")
     subprocess.run(
         [
             "openssl", "req", "-x509", "-newkey", "rsa:2048",

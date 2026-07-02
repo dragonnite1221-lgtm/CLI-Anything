@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from cli_hub._shell_guard import confirm_shell_command, has_shell_operator
 from cli_hub.registry import get_cli
 
 INSTALLED_FILE = Path.home() / ".cli-hub" / "installed.json"
@@ -46,17 +47,14 @@ _UV_INSTALL_HINT = (
 )
 
 
-_SHELL_METACHARACTERS = ("|", "&&", "||", ";", "$(", "`")
-
-
 def _run_command(cmd):
-    """Run a command string.
-
-    Uses shell=True when the command contains shell operators (pipes, &&, etc.)
-    so that script-type installs like ``curl … | bash`` work correctly.
-    Commands come from the trusted registry, not from user input.
-    """
-    use_shell = any(c in cmd for c in _SHELL_METACHARACTERS)
+    """Run a registry command; shell-operator installs need consent (see _shell_guard)."""
+    use_shell = has_shell_operator(cmd)
+    if use_shell and not confirm_shell_command(cmd):
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=126, stdout="",
+            stderr="Aborted: unconfirmed shell install (set CLI_HUB_ALLOW_SHELL_INSTALL=1 for CI).",
+        )
     try:
         return subprocess.run(
             cmd if use_shell else shlex.split(cmd),
@@ -163,10 +161,14 @@ def _bundled_update(cli):
 # ── pip operations (harness CLIs) ──
 
 
+def _pip_specs(install_cmd):
+    # shlex parse + drop dash tokens: tolerates whitespace, blocks smuggled pip flags (L-5).
+    return [t for t in shlex.split(install_cmd or "")[2:] if not t.startswith("-")]
+
+
 def _pip_install(cli):
-    install_cmd = cli["install_cmd"]
     result = subprocess.run(
-        [sys.executable, "-m", "pip", "install"] + install_cmd.replace("pip install ", "").split(),
+        [sys.executable, "-m", "pip", "install", *_pip_specs(cli["install_cmd"])],
         capture_output=True, text=True
     )
     if result.returncode == 0:
@@ -186,10 +188,8 @@ def _pip_uninstall(cli):
 
 
 def _pip_update(cli):
-    install_cmd = cli["install_cmd"]
     result = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall"]
-        + install_cmd.replace("pip install ", "").split(),
+        [sys.executable, "-m", "pip", "install", "--upgrade", "--force-reinstall", *_pip_specs(cli["install_cmd"])],
         capture_output=True, text=True
     )
     if result.returncode == 0:

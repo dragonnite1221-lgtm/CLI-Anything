@@ -31,17 +31,15 @@
 295 blender/agent-harness/cli_anything/blender/core/objects.py
 852 blender/agent-harness/cli_anything/blender/core/preview.py
 263 blender/agent-harness/cli_anything/blender/core/render.py
-208 blender/agent-harness/cli_anything/blender/core/scene.py
 1345 blender/agent-harness/cli_anything/blender/tests/test_core.py
 1263 blender/agent-harness/cli_anything/blender/tests/test_full_e2e.py
 577 blender/agent-harness/cli_anything/blender/utils/bpy_gen.py
 468 blender/agent-harness/cli_anything/blender/utils/preview_bundle.py
 434 browser/agent-harness/cli_anything/browser/browser_cli.py
 389 browser/agent-harness/cli_anything/browser/tests/test_core.py
-354 browser/agent-harness/cli_anything/browser/tests/test_security.py
+281 browser/agent-harness/cli_anything/browser/tests/test_security.py
 430 browser/agent-harness/cli_anything/browser/utils/domshell_backend.py
 567 browser/agent-harness/cli_anything/browser/utils/repl_skin.py
-237 browser/agent-harness/cli_anything/browser/utils/security.py
 405 chromadb/agent-harness/cli_anything/chromadb/tests/test_core.py
 205 chromadb/agent-harness/cli_anything/chromadb/tests/test_full_e2e.py
 567 chromadb/agent-harness/cli_anything/chromadb/utils/repl_skin.py
@@ -72,7 +70,6 @@
 840 docs/scripts/blender_orbital_relay_drone_demo.py
 756 docs/scripts/blender_preview_story_demo.py
 4981 docs/scripts/freecad_live_preview_demo.py
-201 drawio/agent-harness/cli_anything/drawio/core/session.py
 812 drawio/agent-harness/cli_anything/drawio/drawio_cli.py
 869 drawio/agent-harness/cli_anything/drawio/tests/test_core.py
 612 drawio/agent-harness/cli_anything/drawio/tests/test_full_e2e.py
@@ -104,7 +101,6 @@
 707 freecad/agent-harness/cli_anything/freecad/core/motion.py
 1614 freecad/agent-harness/cli_anything/freecad/core/parts.py
 860 freecad/agent-harness/cli_anything/freecad/core/preview.py
-209 freecad/agent-harness/cli_anything/freecad/core/session.py
 1708 freecad/agent-harness/cli_anything/freecad/core/sketch.py
 504 freecad/agent-harness/cli_anything/freecad/core/spreadsheet.py
 391 freecad/agent-harness/cli_anything/freecad/core/surface.py
@@ -119,7 +115,6 @@
 562 gimp/agent-harness/cli_anything/gimp/core/export.py
 382 gimp/agent-harness/cli_anything/gimp/core/filters.py
 379 gimp/agent-harness/cli_anything/gimp/core/layers.py
-211 gimp/agent-harness/cli_anything/gimp/core/media.py
 818 gimp/agent-harness/cli_anything/gimp/gimp_cli.py
 579 gimp/agent-harness/cli_anything/gimp/tests/test_core.py
 607 gimp/agent-harness/cli_anything/gimp/tests/test_full_e2e.py
@@ -149,9 +144,7 @@
 608 iterm2/agent-harness/cli_anything/iterm2_ctl/tests/test_full_e2e.py
 567 iterm2/agent-harness/cli_anything/iterm2_ctl/utils/repl_skin.py
 322 kdenlive/agent-harness/cli_anything/kdenlive/core/filters.py
-208 kdenlive/agent-harness/cli_anything/kdenlive/core/project.py
 258 kdenlive/agent-harness/cli_anything/kdenlive/core/timeline.py
-206 kdenlive/agent-harness/cli_anything/kdenlive/core/transitions.py
 759 kdenlive/agent-harness/cli_anything/kdenlive/kdenlive_cli.py
 789 kdenlive/agent-harness/cli_anything/kdenlive/tests/test_core.py
 874 kdenlive/agent-harness/cli_anything/kdenlive/tests/test_full_e2e.py
@@ -233,7 +226,6 @@
 427 novita/agent-harness/cli_anything/novita/novita_cli.py
 210 novita/agent-harness/cli_anything/novita/utils/novita_backend.py
 567 novita/agent-harness/cli_anything/novita/utils/repl_skin.py
-201 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/frame.py
 701 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/gpu_trace.py
 568 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/replay.py
 519 nsight-graphics/agent-harness/cli_anything/nsight_graphics/nsight_graphics_cli.py
@@ -260,7 +252,6 @@
 567 ollama/agent-harness/cli_anything/ollama/utils/repl_skin.py
 269 openscreen/agent-harness/cli_anything/openscreen/core/export.py
 266 openscreen/agent-harness/cli_anything/openscreen/core/preview.py
-202 openscreen/agent-harness/cli_anything/openscreen/core/project.py
 243 openscreen/agent-harness/cli_anything/openscreen/core/session.py
 435 openscreen/agent-harness/cli_anything/openscreen/core/timeline.py
 844 openscreen/agent-harness/cli_anything/openscreen/openscreen_cli.py
@@ -296,7 +287,6 @@
 606 sbox/agent-harness/cli_anything/sbox/core/codegen.py
 233 sbox/agent-harness/cli_anything/sbox/core/collision_config.py
 552 sbox/agent-harness/cli_anything/sbox/core/export.py
-208 sbox/agent-harness/cli_anything/sbox/core/input_config.py
 327 sbox/agent-harness/cli_anything/sbox/core/prefab.py
 417 sbox/agent-harness/cli_anything/sbox/core/project.py
 1407 sbox/agent-harness/cli_anything/sbox/core/scene.py
@@ -354,12 +344,10 @@
 375 wiremock/agent-harness/cli_anything/wiremock/tests/test_full_e2e.py
 567 wiremock/agent-harness/cli_anything/wiremock/utils/repl_skin.py
 647 wiremock/agent-harness/cli_anything/wiremock/wiremock_cli.py
-218 zoom/agent-harness/cli_anything/zoom/core/auth.py
 242 zoom/agent-harness/cli_anything/zoom/core/meetings.py
-208 zoom/agent-harness/cli_anything/zoom/core/recordings.py
 523 zoom/agent-harness/cli_anything/zoom/tests/test_core.py
 567 zoom/agent-harness/cli_anything/zoom/utils/repl_skin.py
-238 zoom/agent-harness/cli_anything/zoom/utils/zoom_backend.py
+236 zoom/agent-harness/cli_anything/zoom/utils/zoom_backend.py
 517 zoom/agent-harness/cli_anything/zoom/zoom_cli.py
 252 zotero/agent-harness/cli_anything/zotero/core/catalog.py
 664 zotero/agent-harness/cli_anything/zotero/core/imports.py

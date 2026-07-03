@@ -93,13 +93,11 @@ def save_tokens(tokens: dict):
     _restrict_path(TOKEN_FILE, 0o600)
 
 
-def get_authorize_url(client_id: str, redirect_uri: str) -> str:
-    """Build the OAuth2 authorization URL for browser login."""
-    params = {
-        "response_type": "code",
-        "client_id": client_id,
-        "redirect_uri": redirect_uri,
-    }
+def get_authorize_url(client_id: str, redirect_uri: str, state: str | None = None) -> str:
+    """Build the OAuth2 authorization URL; ``state`` is the CSRF token to echo."""
+    params = {"response_type": "code", "client_id": client_id, "redirect_uri": redirect_uri}
+    if state:
+        params["state"] = state
     return f"{OAUTH_AUTHORIZE_URL}?{urlencode(params)}"
 
 

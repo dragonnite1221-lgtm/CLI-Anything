@@ -31,7 +31,6 @@
 295 blender/agent-harness/cli_anything/blender/core/objects.py
 852 blender/agent-harness/cli_anything/blender/core/preview.py
 263 blender/agent-harness/cli_anything/blender/core/render.py
-208 blender/agent-harness/cli_anything/blender/core/scene.py
 1345 blender/agent-harness/cli_anything/blender/tests/test_core.py
 1263 blender/agent-harness/cli_anything/blender/tests/test_full_e2e.py
 577 blender/agent-harness/cli_anything/blender/utils/bpy_gen.py
@@ -71,7 +70,6 @@
 840 docs/scripts/blender_orbital_relay_drone_demo.py
 756 docs/scripts/blender_preview_story_demo.py
 4981 docs/scripts/freecad_live_preview_demo.py
-201 drawio/agent-harness/cli_anything/drawio/core/session.py
 812 drawio/agent-harness/cli_anything/drawio/drawio_cli.py
 869 drawio/agent-harness/cli_anything/drawio/tests/test_core.py
 612 drawio/agent-harness/cli_anything/drawio/tests/test_full_e2e.py
@@ -232,7 +230,6 @@
 427 novita/agent-harness/cli_anything/novita/novita_cli.py
 210 novita/agent-harness/cli_anything/novita/utils/novita_backend.py
 567 novita/agent-harness/cli_anything/novita/utils/repl_skin.py
-201 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/frame.py
 701 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/gpu_trace.py
 568 nsight-graphics/agent-harness/cli_anything/nsight_graphics/core/replay.py
 519 nsight-graphics/agent-harness/cli_anything/nsight_graphics/nsight_graphics_cli.py
@@ -259,7 +256,6 @@
 567 ollama/agent-harness/cli_anything/ollama/utils/repl_skin.py
 269 openscreen/agent-harness/cli_anything/openscreen/core/export.py
 266 openscreen/agent-harness/cli_anything/openscreen/core/preview.py
-202 openscreen/agent-harness/cli_anything/openscreen/core/project.py
 243 openscreen/agent-harness/cli_anything/openscreen/core/session.py
 435 openscreen/agent-harness/cli_anything/openscreen/core/timeline.py
 844 openscreen/agent-harness/cli_anything/openscreen/openscreen_cli.py
@@ -354,7 +350,6 @@
 567 wiremock/agent-harness/cli_anything/wiremock/utils/repl_skin.py
 647 wiremock/agent-harness/cli_anything/wiremock/wiremock_cli.py
 242 zoom/agent-harness/cli_anything/zoom/core/meetings.py
-208 zoom/agent-harness/cli_anything/zoom/core/recordings.py
 523 zoom/agent-harness/cli_anything/zoom/tests/test_core.py
 567 zoom/agent-harness/cli_anything/zoom/utils/repl_skin.py
 236 zoom/agent-harness/cli_anything/zoom/utils/zoom_backend.py

@@ -75,8 +75,6 @@ Examples:
 If you prefer no-argument daily helpers, set MUBU_DAILY_FOLDER='<daily-folder-ref>'.
 """
 REPL_COMMAND_HELP = REPL_HELP_TEMPLATE.format(program_name="the Mubu CLI")
-# Backward-compatible public name retained in __all__.
-REPL_HELP = REPL_COMMAND_HELP
 
 
 def normalize_program_name(program_name: str | None) -> str:
@@ -748,7 +746,6 @@ def entrypoint(argv: list[str] | None = None) -> int:
 
 
 __all__ = [
-    "REPL_HELP",
     "append_command_history",
     "build_session_payload",
     "cli",

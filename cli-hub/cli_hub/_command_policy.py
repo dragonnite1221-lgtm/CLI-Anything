@@ -4,11 +4,29 @@ from __future__ import annotations
 
 import os
 import shlex
+import subprocess
 import sys
 
 
 class RegistryCommandRejected(ValueError):
     """Raised when a registry command is outside the supported safe shapes."""
+
+
+def run_command(command: str | list[str]) -> subprocess.CompletedProcess[str]:
+    """Run explicit argv only; shell syntax is never interpreted."""
+    try:
+        argv = shlex.split(command) if isinstance(command, str) else list(command)
+    except ValueError as exc:
+        return subprocess.CompletedProcess(command, 126, "", f"Rejected command: {exc}")
+    if not argv or any(token in {"|", "&&", "||", ";", ">", "<"} for token in argv):
+        return subprocess.CompletedProcess(
+            command, 126, "", "Rejected command: shell operators are not supported."
+        )
+    try:
+        return subprocess.run(argv, capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        missing = exc.filename or argv[0]
+        return subprocess.CompletedProcess(command, 127, "", f"Command not found: {missing}")
 
 
 def _parts(command: str) -> list[str]:

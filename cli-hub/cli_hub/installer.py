@@ -7,7 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from cli_hub._command_policy import RegistryCommandRejected, registry_command_argv
+from cli_hub._command_policy import (
+    RegistryCommandRejected,
+    registry_command_argv,
+    run_command as _run_command,
+)
 from cli_hub.registry import get_cli
 
 INSTALLED_FILE = Path.home() / ".cli-hub" / "installed.json"
@@ -45,36 +49,6 @@ _UV_INSTALL_HINT = (
     "  brew:          brew install uv\n"
     "  See also:      https://docs.astral.sh/uv/getting-started/installation/"
 )
-
-
-def _run_command(cmd):
-    """Run a command without a shell; reject syntax that needs shell parsing."""
-    try:
-        argv = shlex.split(cmd) if isinstance(cmd, str) else list(cmd)
-    except ValueError as exc:
-        return subprocess.CompletedProcess(
-            args=cmd, returncode=126, stdout="",
-            stderr=f"Rejected command: {exc}",
-        )
-    if not argv or any(token in {"|", "&&", "||", ";", ">", "<"} for token in argv):
-        return subprocess.CompletedProcess(
-            args=cmd, returncode=126, stdout="",
-            stderr="Rejected command: shell operators are not supported.",
-        )
-    try:
-        return subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-        )
-    except FileNotFoundError as exc:
-        missing = exc.filename or argv[0]
-        return subprocess.CompletedProcess(
-            args=cmd,
-            returncode=127,
-            stdout="",
-            stderr=f"Command not found: {missing}",
-        )
 
 
 def _command_exists(cmd):

@@ -705,7 +705,7 @@ JIMENG_CLI = {
 
 
 class TestScriptStrategy:
-    """Tests for script/pipe-command installs (e.g. jimeng curl | bash)."""
+    """Tests for script installers that must remain manual."""
 
     # ── _install_strategy routing ──────────────────────────────────────
 
@@ -719,20 +719,14 @@ class TestScriptStrategy:
         del cli["install_strategy"]
         assert _install_strategy(cli) == "command"
 
-    # ── _run_command shell detection ───────────────────────────────────
+    # ── _run_command shell rejection ───────────────────────────────────
 
     @patch("cli_hub.installer.subprocess.run")
-    def test_run_command_uses_shell_true_for_pipe(self, mock_run):
-        """Pipe character triggers shell=True so bash can interpret it."""
-        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        _run_command("curl -s https://jimeng.jianying.com/cli | bash")
-        mock_run.assert_called_once()
-        _, kwargs = mock_run.call_args
-        assert kwargs.get("shell") is True
-        # cmd passed as a single string, not a list
-        args = mock_run.call_args[0][0]
-        assert isinstance(args, str)
-        assert "| bash" in args
+    def test_run_command_rejects_pipe(self, mock_run):
+        """A remote response is never piped into a shell."""
+        result = _run_command("curl -s https://jimeng.jianying.com/cli | bash")
+        mock_run.assert_not_called()
+        assert result.returncode == 126
 
     @patch("cli_hub.installer.subprocess.run")
     def test_run_command_uses_shell_false_for_simple_command(self, mock_run):
@@ -740,50 +734,27 @@ class TestScriptStrategy:
         mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
         _run_command("brew install --cask 1password-cli")
         _, kwargs = mock_run.call_args
-        assert kwargs.get("shell") is False or kwargs.get("shell") is None
+        assert "shell" not in kwargs
 
     @patch("cli_hub.installer.subprocess.run")
-    def test_run_command_uses_shell_true_for_and_operator(self, mock_run):
-        """&& operator also triggers shell=True."""
-        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-        _run_command("curl -O https://example.com/install.sh && bash install.sh")
-        _, kwargs = mock_run.call_args
-        assert kwargs.get("shell") is True
+    def test_run_command_rejects_and_operator(self, mock_run):
+        """Chained commands are rejected before subprocess execution."""
+        result = _run_command("curl -O https://example.com/install.sh && bash install.sh")
+        mock_run.assert_not_called()
+        assert result.returncode == 126
 
     # ── Full install flow ──────────────────────────────────────────────
 
-    @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
     @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
-    def test_install_jimeng_success(self, mock_get_cli, mock_run):
-        """install_cli('jimeng') succeeds and invokes the pipe command via shell."""
+    def test_install_jimeng_is_blocked(self, mock_get_cli):
+        """install_cli('jimeng') explains that script installers are manual."""
         mock_get_cli.return_value = JIMENG_CLI
-        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
-
-        success, msg = install_cli("jimeng")
-
-        assert success, f"Expected success but got: {msg}"
-        assert "Jimeng" in msg
-
-        mock_run.assert_called_once()
-        _, kwargs = mock_run.call_args
-        assert kwargs.get("shell") is True
-        assert "| bash" in mock_run.call_args[0][0]
-
-    @patch("cli_hub.installer.subprocess.run")
-    @patch("cli_hub.installer.get_cli")
-    @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
-    def test_install_jimeng_failure_propagated(self, mock_get_cli, mock_run):
-        """A non-zero exit from the curl|bash script surfaces as failure."""
-        mock_get_cli.return_value = JIMENG_CLI
-        mock_run.return_value = MagicMock(
-            returncode=1, stdout="", stderr="curl: (6) Could not resolve host"
-        )
 
         success, msg = install_cli("jimeng")
 
         assert not success
-        assert "failed" in msg.lower()
+        assert "script installers are disabled" in msg.lower()
 
     @patch("cli_hub.installer.get_cli")
     def test_uninstall_jimeng_no_cmd_returns_graceful_message(self, mock_get_cli):
@@ -796,22 +767,17 @@ class TestScriptStrategy:
         # Should mention the CLI name or explain no command available — never crash
         assert msg
 
-    @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")
     @patch("cli_hub.installer.INSTALLED_FILE", Path(tempfile.mktemp()))
-    def test_install_jimeng_recorded_in_installed_json(self, mock_get_cli, mock_run):
-        """After a successful install, jimeng appears in installed.json."""
+    def test_blocked_jimeng_is_not_recorded_as_installed(self, mock_get_cli):
+        """A blocked install must not mutate installed.json."""
         installed_file = Path(tempfile.mktemp())
         mock_get_cli.return_value = JIMENG_CLI
-        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
 
         with patch("cli_hub.installer.INSTALLED_FILE", installed_file):
             success, _ = install_cli("jimeng")
-            assert success
-            data = json.loads(installed_file.read_text())
-            assert "jimeng" in data
-            assert data["jimeng"]["strategy"] == "command"
-            assert data["jimeng"]["package_manager"] == "script"
+            assert not success
+            assert not installed_file.exists()
 
 # ─── Analytics tests ──────────────────────────────────────────────────
 

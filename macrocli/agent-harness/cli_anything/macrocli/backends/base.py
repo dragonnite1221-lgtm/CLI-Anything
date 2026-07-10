@@ -8,7 +8,10 @@ from __future__ import annotations
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from cli_anything.macrocli.core.macro_model import MacroStep
 
 
 @dataclass
@@ -62,7 +65,7 @@ class Backend(ABC):
     @abstractmethod
     def execute(
         self,
-        step: "MacroStep",  # type: ignore[name-defined]
+        step: "MacroStep",
         params: dict,
         context: BackendContext,
     ) -> StepResult:

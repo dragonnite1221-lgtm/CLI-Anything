@@ -67,7 +67,10 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    import numpy as np
 
 from cli_anything.macrocli.backends.base import Backend, BackendContext, StepResult
 from cli_anything.macrocli.core.macro_model import MacroStep, substitute

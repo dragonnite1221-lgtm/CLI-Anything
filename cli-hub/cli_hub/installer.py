@@ -7,7 +7,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from cli_hub._shell_guard import confirm_shell_command, has_shell_operator
+from cli_hub._command_policy import (
+    RegistryCommandRejected,
+    registry_command_argv,
+    run_command as _run_command,
+)
 from cli_hub.registry import get_cli
 
 INSTALLED_FILE = Path.home() / ".cli-hub" / "installed.json"
@@ -47,31 +51,6 @@ _UV_INSTALL_HINT = (
 )
 
 
-def _run_command(cmd):
-    """Run a registry command; shell-operator installs need consent (see _shell_guard)."""
-    use_shell = has_shell_operator(cmd)
-    if use_shell and not confirm_shell_command(cmd):
-        return subprocess.CompletedProcess(
-            args=cmd, returncode=126, stdout="",
-            stderr="Aborted: unconfirmed shell install (set CLI_HUB_ALLOW_SHELL_INSTALL=1 for CI).",
-        )
-    try:
-        return subprocess.run(
-            cmd if use_shell else shlex.split(cmd),
-            capture_output=True,
-            text=True,
-            shell=use_shell,
-        )
-    except FileNotFoundError as exc:
-        missing = exc.filename or shlex.split(cmd)[0]
-        return subprocess.CompletedProcess(
-            args=cmd,
-            returncode=127,
-            stdout="",
-            stderr=f"Command not found: {missing}",
-        )
-
-
 def _command_exists(cmd):
     """Check whether the executable for a command string exists on PATH."""
     try:
@@ -99,33 +78,42 @@ def _install_strategy(cli):
     return "command"
 
 
+def _run_registry_action(cli, action):
+    try:
+        argv = registry_command_argv(cli, action)
+    except RegistryCommandRejected as exc:
+        return None, str(exc)
+    return _run_command(argv), None
+
+
 def _generic_install(cli):
-    install_cmd = cli.get("install_cmd")
-    if not install_cmd:
-        return False, f"No install command is defined for {cli['display_name']}."
-    result = _run_command(install_cmd)
+    result, error = _run_registry_action(cli, "install")
+    if error:
+        return False, f"Install blocked: {error}."
     if result.returncode == 0:
         return True, f"Installed {cli['display_name']} ({cli['entry_point']})"
     return False, f"Install failed:\n{result.stderr or result.stdout}"
 
 
 def _generic_uninstall(cli):
-    uninstall_cmd = cli.get("uninstall_cmd")
-    if not uninstall_cmd:
+    if not cli.get("uninstall_cmd"):
         note = cli.get("uninstall_notes") or f"No uninstall command is defined for {cli['display_name']}."
         return False, note
-    result = _run_command(uninstall_cmd)
+    result, error = _run_registry_action(cli, "uninstall")
+    if error:
+        return False, f"Uninstall blocked: {error}."
     if result.returncode == 0:
         return True, f"Uninstalled {cli['display_name']}"
     return False, f"Uninstall failed:\n{result.stderr or result.stdout}"
 
 
 def _generic_update(cli):
-    update_cmd = cli.get("update_cmd")
-    if not update_cmd:
+    if not cli.get("update_cmd"):
         note = cli.get("update_notes") or f"No update command is defined for {cli['display_name']}."
         return False, note
-    result = _run_command(update_cmd)
+    result, error = _run_registry_action(cli, "update")
+    if error:
+        return False, f"Update blocked: {error}."
     if result.returncode == 0:
         return True, f"Updated {cli['display_name']}"
     return False, f"Update failed:\n{result.stderr or result.stdout}"

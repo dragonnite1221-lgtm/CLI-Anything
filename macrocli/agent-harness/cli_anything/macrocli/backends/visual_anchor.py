@@ -67,7 +67,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from cli_anything.macrocli.backends.base import Backend, BackendContext, StepResult
 from cli_anything.macrocli.core.macro_model import MacroStep, substitute
@@ -151,8 +151,8 @@ def _screenshot_as_array():
 
 
 def _find_template(
-    screen: "np.ndarray",
-    template: "np.ndarray",
+    screen: Any,
+    template: Any,
     confidence: float = 0.85,
     step: int = 1,
 ) -> Optional[tuple[int, int, float]]:
@@ -201,7 +201,7 @@ def _find_template(
 
 
 def _wait_for_template(
-    template_array: "np.ndarray",
+    template_array: Any,
     confidence: float,
     timeout_ms: int,
     poll_ms: int = 300,

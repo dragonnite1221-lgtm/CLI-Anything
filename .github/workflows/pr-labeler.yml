@@ -14,13 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out base branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.ref }}
           persist-credentials: false
 
       - name: Apply computed labels
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const labelPullRequest = require("./.github/scripts/pr-labeler.js");

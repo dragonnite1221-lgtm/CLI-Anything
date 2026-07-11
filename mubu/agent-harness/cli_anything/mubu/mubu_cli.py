@@ -746,7 +746,6 @@ def entrypoint(argv: list[str] | None = None) -> int:
 
 
 __all__ = [
-    "REPL_HELP",
     "append_command_history",
     "build_session_payload",
     "cli",

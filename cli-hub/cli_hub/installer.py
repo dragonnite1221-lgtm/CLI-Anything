@@ -66,6 +66,8 @@ _UV_INSTALL_HINT = (
 
 
 _ALLOW_SHELL_ENV = "CLI_HUB_ALLOW_SHELL_COMMANDS"
+_POSIX_SHELLS = {"bash", "dash", "ksh", "sh", "zsh"}
+_WINDOWS_SHELLS = {"cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe"}
 
 
 def _contains_shell_operator(cmd):
@@ -104,6 +106,21 @@ def _allows_shell(cli):
     return bool(cli and cli.get("requires_shell") is True)
 
 
+def _invokes_shell_payload(argv):
+    """Return True when argv explicitly asks a shell to interpret a payload."""
+    if not argv:
+        return False
+    executable = Path(argv[0]).name.lower()
+    options = {arg.lower() for arg in argv[1:]}
+    if executable in _POSIX_SHELLS:
+        return bool(options & {"-c", "--command"})
+    if executable in {"cmd", "cmd.exe"}:
+        return bool(options & {"/c", "/k"})
+    if executable in _WINDOWS_SHELLS:
+        return bool(options & {"-c", "-command", "-enc", "-encodedcommand"})
+    return False
+
+
 def _run_command(cmd, *, allow_shell=False):
     """Run a command string.
 
@@ -113,32 +130,34 @@ def _run_command(cmd, *, allow_shell=False):
     remains a hard override for callers that have reviewed the command locally.
     """
     use_shell = _contains_shell_operator(cmd)
-    if use_shell and not allow_shell and os.environ.get(_ALLOW_SHELL_ENV) != "1":
-        return subprocess.CompletedProcess(
-            args=cmd,
-            returncode=2,
-            stdout="",
-            stderr=(
-                "Command contains shell operators and was not executed. "
-                "Registry entries that intentionally need shell syntax must "
-                f"set requires_shell=true. Set {_ALLOW_SHELL_ENV}=1 only after "
-                "reviewing the registry entry and install command."
-            ),
-        )
     try:
-        argv = cmd if use_shell else shlex.split(cmd)
-        return subprocess.run(
-            argv,
-            capture_output=True,
-            text=True,
-            shell=use_shell,
-        )
+        argv = None if use_shell else shlex.split(cmd)
     except ValueError as exc:
         return subprocess.CompletedProcess(
             args=cmd,
             returncode=2,
             stdout="",
             stderr=f"Invalid command syntax: {exc}",
+        )
+    requires_shell_trust = use_shell or _invokes_shell_payload(argv)
+    if requires_shell_trust and not allow_shell and os.environ.get(_ALLOW_SHELL_ENV) != "1":
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=2,
+            stdout="",
+            stderr=(
+                "Command invokes shell interpretation and was not executed. "
+                "Registry entries that intentionally need shell syntax must "
+                f"set requires_shell=true. Set {_ALLOW_SHELL_ENV}=1 only after "
+                "reviewing the registry entry and install command."
+            ),
+        )
+    try:
+        return subprocess.run(
+            cmd if use_shell else argv,
+            capture_output=True,
+            text=True,
+            shell=use_shell,
         )
     except FileNotFoundError as exc:
         missing = exc.filename or shlex.split(cmd)[0]

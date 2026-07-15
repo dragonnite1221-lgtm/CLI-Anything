@@ -2,7 +2,6 @@
 from .cli_base import *  # noqa: F403
 
 # fmt: off
-from .cli_p1 import _invocation_command  # noqa: E402,E501
 from .cli_p3 import previews  # noqa: E402,E501
 # fmt: on
 
@@ -94,19 +93,3 @@ def preview_open(preview_ref, output_path, poll_ms, port):
         click.echo(f"Opened in {launched['browser']}: pid {launched['pid']}")
     else:
         click.echo(f"Open this file manually: {rendered}")
-
-
-@click.group(invoke_without_command=True)
-@click.option("--version", is_flag=True, help="Show version.")
-@click.pass_context
-def main(ctx, version):
-    """cli-hub — Download and manage CLI-Anything harnesses and public CLIs."""
-    track_first_run()
-    track_visit(
-        command=_invocation_command(ctx, version), detection=detect_invocation_context()
-    )
-    if version:
-        click.echo(f"cli-hub {__version__}")
-        return
-    if ctx.invoked_subcommand is None:
-        click.echo(ctx.get_help())

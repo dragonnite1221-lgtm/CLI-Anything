@@ -1,7 +1,7 @@
 """cli-anything REPL Skin — Unified terminal interface for all CLI harnesses.
 
-Copy this file into your CLI package at:
-    cli_anything/<software>/utils/repl_skin.py
+Copy this package into your CLI package at:
+    cli_anything/<software>/utils/repl_skin/
 
 Usage:
     from cli_anything.<software>.utils.repl_skin import ReplSkin
@@ -16,54 +16,26 @@ Usage:
     skin.status("Track 1", "3 clips, 00:02:30")
     skin.table(headers, rows)
     skin.print_goodbye()
+
+The implementation is split across sibling modules for maintainability;
+the public ``ReplSkin`` name is preserved here for backward compatibility.
 """
 
 import os
 import sys
 from pathlib import Path
 
-from .repl_skin_lib import (  # noqa: F401  (re-exported for compatibility)
-    _ACCENT_COLORS,
-    _ANSI_256_TO_HEX,
-    _BL,
-    _BLUE,
-    _BOLD,
-    _BR,
-    _CROSS,
-    _CYAN,
-    _CYAN_BG,
-    _DARK_GRAY,
-    _DEFAULT_ACCENT,
-    _DIM,
-    _GRAY,
-    _GREEN,
-    _H_LINE,
-    _ICON,
-    _ICON_SMALL,
-    _ITALIC,
-    _LIGHT_GRAY,
-    _MAGENTA,
-    _RED,
-    _RESET,
-    _SKILL_SOURCE_REPO,
-    _T_DOWN,
-    _T_LEFT,
-    _T_RIGHT,
-    _T_UP,
-    _TL,
-    _TR,
-    _UNDERLINE,
-    _V_LINE,
-    _WHITE,
-    _YELLOW,
-    _display_home_path,
-    _strip_ansi,
-    _visible_len,
+from ._banner import _BannerMixin
+from ._const import (
+    _ACCENT_COLORS, _DEFAULT_ACCENT, _RESET, _SKILL_SOURCE_REPO,
 )
-from .repl_skin_methods import _ReplSkinMethods
+from ._io import _IOMixin
+from ._session import _SessionMixin
+
+__all__ = ["ReplSkin"]
 
 
-class ReplSkin(_ReplSkinMethods):
+class ReplSkin(_BannerMixin, _IOMixin, _SessionMixin):
     """Unified REPL skin for cli-anything CLIs.
 
     Provides consistent branding, prompts, and message formatting
@@ -102,7 +74,7 @@ class ReplSkin(_ReplSkinMethods):
         # inside the CLI-Anything monorepo. Fall back to the packaged
         # cli_anything/<software>/skills/SKILL.md for installed harnesses.
         if skill_path is None:
-            package_skill = Path(__file__).resolve().parent.parent / "skills" / "SKILL.md"
+            package_skill = Path(__file__).resolve().parent.parent.parent / "skills" / "SKILL.md"
             repo_skill = None
             for parent in Path(__file__).resolve().parents:
                 candidate = parent / "skills" / self.skill_id / "SKILL.md"

@@ -175,6 +175,24 @@ python3 -m pytest cli_anything/<software>/tests/test_full_e2e.py -v
 python3 -m pytest cli_anything/<software>/tests/ -v
 ```
 
+## File Size Limit (200 lines)
+
+All tracked Python files must stay **≤ 200 lines**. A gate freezes existing
+oversized files in a baseline and blocks any *new* violation or growth:
+
+```bash
+python .github/scripts/check_file_size.py    # must pass before you push
+```
+
+Enable the local pre-push hook so this runs automatically:
+
+```bash
+git config core.hooksPath .github/hooks
+```
+
+Full details — how the baseline works and when to regenerate it — are in
+[.github/scripts/FILE_SIZE_GATE.md](.github/scripts/FILE_SIZE_GATE.md).
+
 ## Submitting a Pull Request
 
 1. Fork the repository and create a feature branch from `main`.

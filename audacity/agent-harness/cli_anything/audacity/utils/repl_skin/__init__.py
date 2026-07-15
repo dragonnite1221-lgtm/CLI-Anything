@@ -1,28 +1,41 @@
-"""cli-anything REPL Skin facade (public ReplSkin entrypoint).
+"""cli-anything REPL Skin — Unified terminal interface for all CLI harnesses.
 
-Constants live in repl_skin_const; method bodies in repl_skin_banner,
-repl_skin_io, and repl_skin_table. Public import path is unchanged:
-    from ...utils.repl_skin import ReplSkin
+Copy this package into your CLI package at:
+    cli_anything/<software>/utils/repl_skin/
+
+Usage:
+    from cli_anything.<software>.utils.repl_skin import ReplSkin
+
+    skin = ReplSkin("shotcut", version="1.0.0")
+    skin.print_banner()  # auto-detects repo-root or packaged SKILL.md
+    prompt_text = skin.prompt(project_name="my_video.mlt", modified=True)
+    skin.success("Project saved")
+    skin.error("File not found")
+    skin.warning("Unsaved changes")
+    skin.info("Processing 24 clips...")
+    skin.status("Track 1", "3 clips, 00:02:30")
+    skin.table(headers, rows)
+    skin.print_goodbye()
+
+The implementation is split across sibling modules for maintainability;
+the public ``ReplSkin`` name is preserved here for backward compatibility.
 """
 
-import os  # noqa: F401
+import os
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from repl_skin_const import (  # noqa: E402
-    _RESET, _BOLD, _DIM, _ITALIC, _UNDERLINE, _CYAN, _CYAN_BG, _WHITE, _GRAY, _DARK_GRAY,
-    _LIGHT_GRAY, _ACCENT_COLORS, _DEFAULT_ACCENT, _GREEN, _YELLOW, _RED, _BLUE, _MAGENTA,
-    _SKILL_SOURCE_REPO, _ICON, _ICON_SMALL, _H_LINE, _V_LINE, _TL, _TR, _BL, _BR, _T_DOWN,
-    _T_UP, _T_RIGHT, _T_LEFT, _CROSS, _strip_ansi, _visible_len, _display_home_path,
-    _ANSI_256_TO_HEX,
+from ._banner import _BannerMixin
+from ._const import (
+    _ACCENT_COLORS, _DEFAULT_ACCENT, _RESET, _SKILL_SOURCE_REPO,
 )
-from repl_skin_banner import _ReplSkinBanner  # noqa: E402
-from repl_skin_io import _ReplSkinIO  # noqa: E402
-from repl_skin_table import _ReplSkinTable  # noqa: E402
+from ._io import _IOMixin
+from ._session import _SessionMixin
+
+__all__ = ["ReplSkin"]
 
 
-class ReplSkin(_ReplSkinBanner, _ReplSkinIO, _ReplSkinTable):
+class ReplSkin(_BannerMixin, _IOMixin, _SessionMixin):
     """Unified REPL skin for cli-anything CLIs.
 
     Provides consistent branding, prompts, and message formatting
@@ -61,7 +74,7 @@ class ReplSkin(_ReplSkinBanner, _ReplSkinIO, _ReplSkinTable):
         # inside the CLI-Anything monorepo. Fall back to the packaged
         # cli_anything/<software>/skills/SKILL.md for installed harnesses.
         if skill_path is None:
-            package_skill = Path(__file__).resolve().parent.parent / "skills" / "SKILL.md"
+            package_skill = Path(__file__).resolve().parent.parent.parent / "skills" / "SKILL.md"
             repo_skill = None
             for parent in Path(__file__).resolve().parents:
                 candidate = parent / "skills" / self.skill_id / "SKILL.md"
@@ -101,5 +114,3 @@ class ReplSkin(_ReplSkinBanner, _ReplSkinIO, _ReplSkinTable):
         if not self._color:
             return text
         return f"{code}{text}{_RESET}"
-
-    # ── Banner ────────────────────────────────────────────────────────

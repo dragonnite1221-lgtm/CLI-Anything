@@ -1,6 +1,6 @@
 # ruff: noqa: F403, F405, E501
 from .cli_base import *  # noqa: F403
-from .cli_p4 import main  # noqa: F401
+from .cli_base import main  # noqa: F401
 
 
 if __name__ == "__main__":

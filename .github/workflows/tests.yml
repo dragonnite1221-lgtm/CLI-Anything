@@ -1,0 +1,25 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+# Code review H2: the repo shipped a "2,269 Passing" badge with no CI actually
+# running pytest, so regressions in the published `cli-hub` package went
+# unverified on merge. This workflow gates cli-hub — the pip-installed entry
+# point that drives every install — on every push/PR. (Per-harness test
+# matrices are a follow-up; harness suites need their own backend deps.)
+jobs:
+  cli-hub:
+    name: cli-hub (published package)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install cli-hub + pytest
+        run: pip install -e ./cli-hub pytest
+      - name: Run cli-hub tests
+        run: python -m pytest cli-hub/tests -q

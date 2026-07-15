@@ -66,3 +66,41 @@ __all__ = [
     "uninstall_cli",
     "update_cli",
 ]
+
+
+def _invocation_command(ctx, version):
+    """Return a compact label for the current invocation."""
+    argv = sys.argv[1:]
+    if version:
+        return "--version"
+    if ctx.invoked_subcommand:
+        return ctx.invoked_subcommand
+    if any(arg in ("--help", "-h") for arg in argv):
+        return "--help"
+    if argv:
+        return argv[0]
+    return "root"
+
+
+@click.group(invoke_without_command=True)
+@click.option("--version", is_flag=True, help="Show version.")
+@click.pass_context
+def main(ctx, version):
+    """cli-hub — Download and manage CLI-Anything harnesses and public CLIs."""
+    # Resolve through the public facade at call time so existing
+    # ``patch("cli_hub.cli.*")`` integrations continue to work after the split.
+    from . import cli as facade
+
+    facade.track_first_run()
+    facade.track_visit(
+        command=_invocation_command(ctx, version),
+        detection=facade.detect_invocation_context(),
+    )
+    if version:
+        click.echo(f"cli-hub {__version__}")
+        return
+    if ctx.invoked_subcommand is None:
+        click.echo(ctx.get_help())
+
+
+__all__.extend(["_invocation_command", "main"])

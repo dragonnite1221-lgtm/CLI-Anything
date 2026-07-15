@@ -2,18 +2,41 @@
 
 Obsidian Local REST API plugin runs an HTTPS server (default: https://localhost:27124).
 Authentication is via Bearer token configured in the plugin settings.
-Uses self-signed certificate by default (verify=False).
+Uses a self-signed certificate by default; TLS verification is skipped only for
+loopback hosts (see _should_verify), and enforced for remote hosts.
 """
 
+import os
 import requests
 import urllib3
 from typing import Any
+from urllib.parse import urlparse
 
 # Suppress InsecureRequestWarning for self-signed certs
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Default Obsidian Local REST API URL
 DEFAULT_BASE_URL = "https://localhost:27124"
+
+# Hosts whose self-signed certs we tolerate by default (the plugin ships one).
+_LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+
+
+def _should_verify(base_url: str) -> bool:
+    """Decide whether to verify TLS for a request.
+
+    Local Obsidian instances use a self-signed cert, so verification is skipped
+    for loopback hosts only. Remote hosts (via --host) are verified so the Bearer
+    API key is not sent over an unauthenticated TLS channel. Override explicitly
+    with OBSIDIAN_TLS_VERIFY=1/true (force on) or 0/false (force off).
+    """
+    override = os.environ.get("OBSIDIAN_TLS_VERIFY", "").strip().lower()
+    if override in ("1", "true", "yes"):
+        return True
+    if override in ("0", "false", "no"):
+        return False
+    host = (urlparse(base_url).hostname or "").lower()
+    return host not in _LOCAL_HOSTS
 
 
 def _headers(api_key: str, accept: str = "application/json",
@@ -31,7 +54,7 @@ def api_get(base_url: str, endpoint: str, api_key: str,
     url = f"{base_url.rstrip('/')}{endpoint}"
     try:
         resp = requests.get(url, headers=_headers(api_key),
-                           params=params, timeout=timeout, verify=False)
+                           params=params, timeout=timeout, verify=_should_verify(base_url))
         resp.raise_for_status()
         if resp.status_code == 204 or not resp.content:
             return {"status": "ok"}
@@ -62,7 +85,7 @@ def api_post(base_url: str, endpoint: str, api_key: str,
     try:
         resp = requests.post(url, headers=_headers(api_key),
                             json=data, params=params,
-                            timeout=timeout, verify=False)
+                            timeout=timeout, verify=_should_verify(base_url))
         resp.raise_for_status()
         if resp.status_code == 204 or not resp.content:
             return {"status": "ok"}
@@ -93,7 +116,7 @@ def api_put(base_url: str, endpoint: str, api_key: str,
     try:
         headers = _headers(api_key, content_type=content_type)
         resp = requests.put(url, headers=headers, data=content.encode("utf-8"),
-                           timeout=timeout, verify=False)
+                           timeout=timeout, verify=_should_verify(base_url))
         resp.raise_for_status()
         if resp.status_code == 204 or not resp.content:
             return {"status": "ok"}
@@ -122,7 +145,7 @@ def api_delete(base_url: str, endpoint: str, api_key: str,
     url = f"{base_url.rstrip('/')}{endpoint}"
     try:
         resp = requests.delete(url, headers=_headers(api_key),
-                              timeout=timeout, verify=False)
+                              timeout=timeout, verify=_should_verify(base_url))
         resp.raise_for_status()
         if resp.status_code == 204 or not resp.content:
             return {"status": "ok"}
@@ -152,7 +175,7 @@ def is_available(api_key: str, base_url: str = DEFAULT_BASE_URL) -> bool:
             f"{base_url.rstrip('/')}/",
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=5,
-            verify=False,
+            verify=_should_verify(base_url),
         )
         return resp.status_code == 200
     except (requests.exceptions.ConnectionError, requests.exceptions.Timeout):

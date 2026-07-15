@@ -3,7 +3,6 @@ from .cli_base import *  # noqa: F403
 
 # fmt: off
 from .cli_p1 import _source_tag  # noqa: E402,E501
-from .cli_p4 import main  # noqa: E402,E501
 # fmt: on
 
 

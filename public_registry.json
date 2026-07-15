@@ -2,7 +2,7 @@
   "meta": {
     "repo": "https://github.com/HKUDS/CLI-Anything",
     "description": "Public CLI Registry — Third-party and official CLIs managed by CLI-Hub across npm, bundled, brew, and other install methods",
-    "updated": "2026-06-03"
+    "updated": "2026-06-19"
   },
   "clis": [
     {
@@ -449,6 +449,48 @@
         {
           "name": "123dx-svg",
           "url": "https://github.com/123dx-svg"
+        }
+      ]
+    },
+    {
+      "name": "browser-cdp",
+      "display_name": "Browser CDP",
+      "version": "0.1.0",
+      "description": "Browser automation via raw Chrome DevTools Protocol — connects to YOUR existing Chrome, no extensions, no new browser, inherits all cookies and sessions",
+      "category": "web",
+      "requires": "Chrome/Chromium with --remote-debugging-port=9222, Python >= 3.10",
+      "homepage": "https://github.com/Uname58/cdp-agent-kit",
+      "source_url": "https://github.com/Uname58/cdp-agent-kit",
+      "package_manager": "pip",
+      "install_strategy": "command",
+      "install_cmd": "pip install git+https://github.com/Uname58/cdp-agent-kit.git#subdirectory=contrib/cli-anything-harness/agent-harness",
+      "uninstall_cmd": "pip uninstall -y cli-anything-browser-cdp",
+      "update_cmd": "pip install --upgrade --force-reinstall git+https://github.com/Uname58/cdp-agent-kit.git#subdirectory=contrib/cli-anything-harness/agent-harness",
+      "skill_md": "https://raw.githubusercontent.com/Uname58/cdp-agent-kit/master/contrib/cli-anything-harness/agent-harness/SKILL.md",
+      "entry_point": "cli-anything-browser-cdp",
+      "contributors": [
+        {
+          "name": "Uname58",
+          "url": "https://github.com/Uname58"
+        }
+      ]
+    },
+    {
+      "name": "pieces",
+      "display_name": "Pieces OS CLI",
+      "version": "1.0.0",
+      "description": "Agent-native CLI for Pieces OS — persistent long-term memory for developers. Search, create, and manage memory assets, snippets, and models via Pieces OS REST API.",
+      "category": "productivity",
+      "requires": "Pieces OS running locally (http://localhost:39300)",
+      "homepage": "https://pieces.app",
+      "source_url": "https://github.com/goddardoven110907/cli-anything-pieces",
+      "install_cmd": "pip install git+https://github.com/goddardoven110907/cli-anything-pieces.git",
+      "entry_point": "cli-anything-pieces",
+      "skill_md": "https://github.com/goddardoven110907/cli-anything-pieces/blob/master/README.md",
+      "contributors": [
+        {
+          "name": "goddardoven110907",
+          "url": "https://github.com/goddardoven110907"
         }
       ]
     }

@@ -196,13 +196,7 @@ def _extract_lane_id(result: Any) -> Optional[str]:
     empty, or the marker reports the default "shared" lane (which is
     DOMShell's no-isolation sentinel and not something we want to pin to).
     """
-    text = ""
-    content = getattr(result, "content", None)
-    if content:
-        for c in content:
-            piece = getattr(c, "text", None)
-            if piece:
-                text += piece
+    text = _extract_text(result)
     if not text:
         return None
     m = _LANE_LINE.search(text.strip())
@@ -837,15 +831,10 @@ def grep(
     """Search for pattern in the accessibility tree.
 
     When ``path`` is provided and is not ``/``, the search is rooted at that
-    path: ``cd`` into it, ``grep``, then ``cd`` back to ``prev`` — sent as one
-    multi-line ``domshell_execute`` call so all three lines share an MCP
-    session (and therefore a DOMShell lane / cwd). Each ``_call_execute`` in
-    non-daemon mode opens a fresh stdio session that lands in its own
-    DOMShell 2.x lane, so splitting cd/grep/restore across separate calls
-    would lose the cwd between them. The trailing ``cd prev`` is delivered as
-    the final line of the same command and runs even if ``grep`` errors —
-    DOMShell's multi-line splitter continues past errors (see
-    `apireno/DOMShell#46 <https://github.com/apireno/DOMShell/issues/46>`_).
+    path via a split-and-check sequence: an anchor ``cd``, then ``grep``,
+    and finally a restore ``cd``. Each step is a separate ``domshell_execute``
+    call but they all share the same MCP session (and therefore DOMShell lane/cwd).
+    This allows halting early if the anchor ``cd`` fails.
 
     ``path``, ``prev``, and ``use_daemon`` are keyword-only to prevent silent
     breakage of callers written against the pre-migration positional

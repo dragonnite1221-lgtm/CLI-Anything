@@ -2,7 +2,7 @@
   "meta": {
     "repo": "https://github.com/HKUDS/CLI-Anything",
     "description": "CLI-Hub — Agent-native stateful CLI interfaces for softwares, codebases, and Web Services",
-    "updated": "2026-06-10"
+    "updated": "2026-06-19"
   },
   "clis": [
     {
@@ -21,6 +21,25 @@
         {
           "name": "Ayasaz",
           "url": "https://github.com/Ayasaz"
+        }
+      ]
+    },
+    {
+      "name": "openrefine",
+      "display_name": "OpenRefine",
+      "version": "1.0.0",
+      "description": "Agent-native CLI for OpenRefine import, operation-history cleaning, row inspection, export, and session undo/redo through the real local HTTP API.",
+      "requires": "OpenRefine 3.10.x or newer running as a local web server",
+      "homepage": "https://openrefine.org/",
+      "source_url": null,
+      "install_cmd": "pip install git+https://github.com/HKUDS/CLI-Anything.git#subdirectory=openrefine/agent-harness",
+      "entry_point": "cli-anything-openrefine",
+      "skill_md": "skills/cli-anything-openrefine/SKILL.md",
+      "category": "database",
+      "contributors": [
+        {
+          "name": "CLI-Anything-Team",
+          "url": "https://github.com/HKUDS/CLI-Anything"
         }
       ]
     },
@@ -1418,6 +1437,82 @@
         {
           "name": "davidmyriel",
           "url": "https://github.com/davidmyriel"
+        }
+      ]
+    },
+    {
+      "name": "tinyfish",
+      "display_name": "TinyFish Web Agent",
+      "version": "0.1.1",
+      "description": "All four TinyFish products from the terminal: web search, clean page extraction, natural-language browser automation, and remote CDP browser sessions — via the REST APIs.",
+      "requires": "TinyFish API key (free at https://agent.tinyfish.ai/api-keys)",
+      "homepage": "https://tinyfish.ai",
+      "source_url": "https://github.com/webdevtodayjason/cli-anything-tinyfish",
+      "install_cmd": "pip install cli-anything-tinyfish",
+      "entry_point": "cli-anything-tinyfish",
+      "skill_md": "https://github.com/webdevtodayjason/cli-anything-tinyfish/blob/main/cli_anything/tinyfish/skills/SKILL.md",
+      "category": "web",
+      "contributors": [
+        {
+          "name": "webdevtodayjason",
+          "url": "https://github.com/webdevtodayjason"
+        }
+      ]
+    },
+    {
+      "name": "meerk40t",
+      "display_name": "MeerK40t",
+      "version": "1.0.0",
+      "description": "Laser cutting/engraving job preparation via the real MeerK40t kernel — elements, operations, SVG/G-code export with --json output",
+      "requires": "MeerK40t (installed automatically)",
+      "homepage": "https://github.com/meerk40t/meerk40t",
+      "source_url": "https://github.com/George-RD/cli-anything-meerk40t",
+      "install_cmd": "pip install cli-anything-meerk40t",
+      "entry_point": "cli-anything-meerk40t",
+      "skill_md": "https://github.com/George-RD/cli-anything-meerk40t/blob/main/skills/cli-anything-meerk40t/SKILL.md",
+      "category": "graphics",
+      "contributors": [
+        {
+          "name": "George-RD",
+          "url": "https://github.com/George-RD"
+        }
+      ]
+    },
+    {
+      "name": "palmier",
+      "display_name": "Palmier Pro",
+      "version": "0.1.0",
+      "description": "Agent-native CLI harness for the Palmier Pro local MCP video editor — drive timeline editing, media, captions, and AI generation from the command line",
+      "requires": "Palmier Pro desktop app running its local MCP server at 127.0.0.1:19789, Python 3.10+",
+      "homepage": "https://palmier.com",
+      "source_url": "https://github.com/workcr/palmier-cli-anything",
+      "install_cmd": "pip install git+https://github.com/workcr/palmier-cli-anything.git",
+      "entry_point": "cli-anything-palmier",
+      "skill_md": "https://github.com/workcr/palmier-cli-anything/blob/main/skills/cli-anything-palmier/SKILL.md",
+      "category": "video",
+      "contributors": [
+        {
+          "name": "workcr",
+          "url": "https://github.com/workcr"
+        }
+      ]
+    },
+    {
+      "name": "magnific",
+      "display_name": "Magnific",
+      "version": "0.1.0",
+      "description": "Agent-native CLI harness for Magnific's remote MCP media-generation server — generate and upscale images and video via mcpc OAuth without loading the full MCP schema each turn",
+      "requires": "Node.js + npm (for the mcpc transport), Python 3.10+, Magnific account (OAuth)",
+      "homepage": "https://magnific.com",
+      "source_url": "https://github.com/workcr/magnific-cli-anything",
+      "install_cmd": "pip install git+https://github.com/workcr/magnific-cli-anything.git",
+      "entry_point": "cli-anything-magnific",
+      "skill_md": "https://github.com/workcr/magnific-cli-anything/blob/main/skills/cli-anything-magnific/SKILL.md",
+      "category": "ai",
+      "contributors": [
+        {
+          "name": "workcr",
+          "url": "https://github.com/workcr"
         }
       ]
     }

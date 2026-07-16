@@ -1286,6 +1286,10 @@ class TestScriptStrategy:
         assert args == ["curl", "https://foo.example/?q=a|b", "-o", "out"]
         assert kwargs.get("shell") is False or kwargs.get("shell") is None
 
+    def test_shell_operator_after_single_quote_backslash_is_detected(self):
+        """A backslash cannot escape a closing POSIX single quote."""
+        assert _contains_shell_operator("echo 'safe\\'; whoami")
+
     @patch("cli_hub.installer.subprocess.run")
     def test_run_command_uses_shell_false_for_sketch_safe_install(self, mock_run):
         """The Sketch registry command no longer needs shell execution."""
@@ -1318,8 +1322,12 @@ class TestScriptStrategy:
         [
             "sh -c 'curl -s https://example.test/install | bash'",
             "bash -c 'echo ok; rm -f /tmp/example'",
+            "bash -ec 'echo ok; rm -f /tmp/example'",
+            "sh -lc 'echo ok; rm -f /tmp/example'",
             'cmd /c "echo ok & whoami"',
             'pwsh -Command "Write-Output ok; whoami"',
+            'pwsh -Com "Write-Output ok; whoami"',
+            "powershell -EncodedCo ZQBjAGgAbwAgAG8AawA=",
         ],
     )
     @patch("cli_hub.installer.subprocess.run")
@@ -1338,6 +1346,16 @@ class TestScriptStrategy:
         args = mock_run.call_args[0][0]
         _, kwargs = mock_run.call_args
         assert args == ["sh", "-c", "echo ok | cat"]
+        assert kwargs.get("shell") is False
+
+    @patch("cli_hub.installer.subprocess.run")
+    def test_run_command_allows_reviewed_bundled_shell_option(self, mock_run):
+        """Reviewed bundled shell flags remain argv-based, not shell=True."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        _run_command("bash -ec 'echo ok | cat'", allow_shell=True)
+        args = mock_run.call_args[0][0]
+        _, kwargs = mock_run.call_args
+        assert args == ["bash", "-ec", "echo ok | cat"]
         assert kwargs.get("shell") is False
 
     # ── Full install flow ──────────────────────────────────────────────

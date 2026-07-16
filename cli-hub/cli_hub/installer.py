@@ -78,6 +78,14 @@ def _contains_shell_operator(cmd):
     i = 0
     while i < len(cmd):
         ch = cmd[i]
+        if quote == "'":
+            # POSIX shells treat backslashes literally inside single quotes.
+            # Check the closing quote before applying generic escaping so a
+            # trailing backslash cannot hide an operator that follows it.
+            if ch == "'":
+                quote = None
+            i += 1
+            continue
         if escaped:
             escaped = False
             i += 1
@@ -114,11 +122,25 @@ def _invokes_shell_payload(argv):
     executable = Path(argv[0]).name.lower()
     options = {arg.lower() for arg in argv[1:]}
     if executable in _POSIX_SHELLS:
-        return bool(options & {"-c", "--command"})
+        return any(
+            option == "--command"
+            or (
+                option.startswith("-")
+                and not option.startswith("--")
+                and "c" in option[1:]
+            )
+            for option in options
+        )
     if executable in {"cmd", "cmd.exe"}:
         return bool(options & {"/c", "/k"})
     if executable in _WINDOWS_SHELLS:
-        return bool(options & {"-c", "-command", "-enc", "-encodedcommand"})
+        payload_parameters = ("command", "commandwithargs", "encodedcommand")
+        return any(
+            option.startswith("-")
+            and bool(parameter := option.lstrip("-"))
+            and any(name.startswith(parameter) for name in payload_parameters)
+            for option in options
+        )
     return False
 
 

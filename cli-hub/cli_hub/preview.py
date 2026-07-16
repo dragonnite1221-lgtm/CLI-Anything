@@ -658,7 +658,8 @@ def _artifact_href(output_dir: Path, bundle_dir: Path, artifact_path: str) -> Op
     target = _resolve_bundle_artifact(bundle_dir, artifact_path)
     if target is None:
         return None
-    return os.path.relpath(target, output_dir)
+    # HTML URLs always use forward slashes, including when rendered on Windows.
+    return Path(os.path.relpath(target, output_dir)).as_posix()
 
 
 def _render_artifact_card(output_dir: Path, bundle_dir: Path, artifact: Dict[str, Any]) -> str:

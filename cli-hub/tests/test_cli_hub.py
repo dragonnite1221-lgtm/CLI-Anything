@@ -3,7 +3,9 @@
 import json
 import os
 import shlex
+import subprocess
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -65,6 +67,35 @@ from cli_hub.cli import main
 @pytest.fixture(autouse=True)
 def isolate_installed_file(tmp_path, monkeypatch):
     monkeypatch.setattr("cli_hub.installer.INSTALLED_FILE", tmp_path / "installed.json")
+
+
+@contextmanager
+def _clean_environment(home: Path | None = None):
+    """Clear agent signals without making the OS home directory unusable."""
+    clean = {}
+    if home is not None:
+        clean.update(HOME=str(home), USERPROFILE=str(home))
+    else:
+        for name in ("HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH"):
+            if value := os.environ.get(name):
+                clean[name] = value
+    with patch.dict(os.environ, clean, clear=True):
+        yield
+
+
+def _link_directory(link: Path, target: Path) -> None:
+    """Create a directory link without requiring Windows Developer Mode."""
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError as exc:
+        if os.name != "nt" or getattr(exc, "winerror", None) != 1314:
+            raise
+        subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
 
 # ─── Sample registry data ─────────────────────────────────────────────
@@ -290,10 +321,16 @@ def _make_preview_bundle(tmp_path: Path, *, with_trajectory: bool = False) -> Pa
                 }
             ],
         }
-        (tmp_path / "trajectory.json").write_text(json.dumps(trajectory, indent=2))
+        (tmp_path / "trajectory.json").write_text(
+            json.dumps(trajectory, indent=2), encoding="utf-8"
+        )
         manifest["context"] = {"trajectory_path": "../trajectory.json"}
-    (bundle_dir / "summary.json").write_text(json.dumps(summary, indent=2))
-    (bundle_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
+    (bundle_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2), encoding="utf-8"
+    )
+    (bundle_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2), encoding="utf-8"
+    )
     return bundle_dir
 
 
@@ -301,7 +338,7 @@ def _make_preview_session(tmp_path: Path, *, with_trajectory: bool = False) -> P
     bundle_dir = _make_preview_bundle(tmp_path)
     session_dir = tmp_path / "live-session"
     session_dir.mkdir()
-    (session_dir / "current").symlink_to(bundle_dir, target_is_directory=True)
+    _link_directory(session_dir / "current", bundle_dir)
     session = {
         "protocol_version": "preview-live/v1",
         "software": "shotcut",
@@ -365,7 +402,9 @@ def _make_preview_session(tmp_path: Path, *, with_trajectory: bool = False) -> P
                 },
             ],
         }
-        (session_dir / "trajectory.json").write_text(json.dumps(trajectory, indent=2))
+        (session_dir / "trajectory.json").write_text(
+            json.dumps(trajectory, indent=2), encoding="utf-8"
+        )
         session.update(
             {
                 "trajectory_path": "trajectory.json",
@@ -376,7 +415,9 @@ def _make_preview_session(tmp_path: Path, *, with_trajectory: bool = False) -> P
                 "latest_publish_reason": "manual-push",
             }
         )
-    (session_dir / "session.json").write_text(json.dumps(session, indent=2))
+    (session_dir / "session.json").write_text(
+        json.dumps(session, indent=2), encoding="utf-8"
+    )
     return session_dir
 
 
@@ -402,7 +443,7 @@ class TestRegistry:
     def test_fetch_registry_uses_cache_on_refresh_failure(self, mock_get, tmp_path):
         cache_file = tmp_path / "registry_cache.json"
         cache_payload = {"_cached_at": 0, "data": SAMPLE_REGISTRY}
-        cache_file.write_text(json.dumps(cache_payload, indent=2))
+        cache_file.write_text(json.dumps(cache_payload, indent=2), encoding="utf-8")
 
         with patch("cli_hub.registry.CACHE_FILE", cache_file):
             result = fetch_registry(force_refresh=True)
@@ -666,7 +707,7 @@ class TestMatrixSkill:
         mock_resolve.side_effect = lambda cli: f"/tmp/{cli['name']}/skills/SKILL.md" if cli["name"] != "blender" else None
 
         rendered = render_matrix_skill_file(SAMPLE_MATRIX_REGISTRY["matrices"][0], installed={"gimp": {}, "audacity": {}})
-        content = Path(rendered).read_text()
+        content = Path(rendered).read_text(encoding="utf-8")
         assert "## Installed CLI Skills" in content
         assert "/tmp/gimp/skills/SKILL.md" in content
         assert "skills/cli-anything-gimp/SKILL.md" in content
@@ -757,7 +798,7 @@ class TestMultiApproachRendering:
         mock_resolve.return_value = None
 
         rendered = render_matrix_skill_file(SAMPLE_MATRIX_REGISTRY["matrices"][0], installed={"gimp": {}})
-        content = Path(rendered).read_text()
+        content = Path(rendered).read_text(encoding="utf-8")
         assert "## Stage Tooling Overview" in content
         assert "## Skill Discovery Commands" not in content
         assert "npx skills search" not in content
@@ -793,7 +834,7 @@ class TestPreviewBundle:
         output_path = tmp_path / "preview.html"
         rendered = render_html(str(bundle_dir), str(output_path))
         assert rendered == str(output_path.resolve())
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "CLI-Anything Preview Bundle" in content
         assert "Quick preview rendered" in content
         assert "artifacts/hero.png" in content
@@ -802,13 +843,13 @@ class TestPreviewBundle:
     def test_render_html_does_not_link_artifacts_outside_bundle(self, tmp_path):
         bundle_dir = _make_preview_bundle(tmp_path)
         manifest_path = bundle_dir / "manifest.json"
-        manifest = json.loads(manifest_path.read_text())
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         manifest["artifacts"][0]["path"] = "../secret.txt"
-        manifest_path.write_text(json.dumps(manifest))
+        manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
         output_path = tmp_path / "preview.html"
         render_html(str(bundle_dir), str(output_path))
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
 
         assert 'src="../secret.txt"' not in content
         assert "Unavailable artifact path: ../secret.txt" in content
@@ -863,7 +904,7 @@ class TestPreviewBundle:
         output_path = tmp_path / "live.html"
         rendered = render_live_html(str(session_dir), str(output_path), poll_ms=800)
         assert rendered == str(output_path.resolve())
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert "CLI-Anything Live Preview Session" in content
         assert 'const CURRENT_LINK = "current";' in content
         assert "manifest = await fetchJson(`${currentLink}/manifest.json`);" in content
@@ -873,7 +914,7 @@ class TestPreviewBundle:
         session_dir = _make_preview_session(tmp_path)
         output_path = tmp_path / "live.html"
         render_live_html(str(session_dir), str(output_path), poll_ms=800)
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
 
         assert "function safeRelativeUrlPath(value)" in content
         assert "artifact.path}?rev=" not in content
@@ -882,13 +923,13 @@ class TestPreviewBundle:
     def test_render_live_html_escapes_script_json(self, tmp_path):
         session_dir = _make_preview_session(tmp_path)
         session_path = session_dir / "session.json"
-        session = json.loads(session_path.read_text())
+        session = json.loads(session_path.read_text(encoding="utf-8"))
         session["current_link"] = "</script><img src=x onerror=alert(1)>"
-        session_path.write_text(json.dumps(session))
+        session_path.write_text(json.dumps(session), encoding="utf-8")
 
         output_path = tmp_path / "live.html"
         render_live_html(str(session_dir), str(output_path), poll_ms=800)
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
 
         assert "</script><img" not in content
         assert "\\u003c/script\\u003e" in content
@@ -897,7 +938,7 @@ class TestPreviewBundle:
         session_dir = _make_preview_session(tmp_path, with_trajectory=True)
         output_path = tmp_path / "live-trajectory.html"
         render_live_html(str(session_dir), str(output_path), poll_ms=600)
-        content = output_path.read_text()
+        content = output_path.read_text(encoding="utf-8")
         assert 'const TRAJECTORY_CANDIDATES = ["trajectory.json", "timeline.json"];' in content
         assert "function normalizeTrajectory(session, payload)" in content
         assert "Trajectory Timeline" in content
@@ -928,7 +969,7 @@ class TestPreviewBundle:
         result = runner.invoke(main, ["previews", "html", str(session_dir), "-o", str(output_path), "--poll-ms", "700"])
         assert result.exit_code == 0
         assert output_path.is_file()
-        assert "const POLL_MS = 700;" in output_path.read_text()
+        assert "const POLL_MS = 700;" in output_path.read_text(encoding="utf-8")
 
     def test_previews_help_and_cli(self, tmp_path):
         session_dir = _make_preview_session(tmp_path, with_trajectory=True)
@@ -1419,7 +1460,7 @@ class TestScriptStrategy:
         with patch("cli_hub.installer.INSTALLED_FILE", installed_file):
             success, _ = install_cli("jimeng")
             assert success
-            data = json.loads(installed_file.read_text())
+            data = json.loads(installed_file.read_text(encoding="utf-8"))
             assert "jimeng" in data
             assert data["jimeng"]["strategy"] == "command"
             assert data["jimeng"]["package_manager"] == "script"
@@ -1432,7 +1473,7 @@ class TestAnalytics:
     """Tests for analytics.py — opt-out, event firing, event names."""
 
     def test_analytics_enabled_by_default(self):
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             assert _is_enabled()
 
     def test_analytics_disabled_by_env(self):
@@ -1445,7 +1486,7 @@ class TestAnalytics:
 
     @patch("cli_hub.analytics._send_event")
     def test_track_event_sends_request(self, mock_send):
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             track_event("test-event", data={"key": "value"})
             import time
             time.sleep(0.2)
@@ -1477,7 +1518,7 @@ class TestAnalytics:
     @patch("cli_hub.analytics._send_event")
     def test_track_install_event_name_is_flat(self, mock_send):
         """cli-install event name is static; CLI name lives in properties.cli."""
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             track_install("gimp", "1.0.0")
             import time
             time.sleep(0.2)
@@ -1492,7 +1533,7 @@ class TestAnalytics:
     @patch("cli_hub.analytics._send_event")
     def test_track_uninstall_event_name_is_flat(self, mock_send):
         """cli-uninstall event name is static; CLI name lives in properties.cli."""
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             analytics_track_uninstall("blender")
             import time
             time.sleep(0.2)
@@ -1507,7 +1548,7 @@ class TestAnalytics:
     def test_track_launch_fires(self, mock_send):
         """cli-launch event fires with the CLI name in properties."""
         from cli_hub.analytics import track_launch
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             track_launch("gimp")
             import time
             time.sleep(0.2)
@@ -1520,7 +1561,7 @@ class TestAnalytics:
     @patch("cli_hub.analytics._send_event")
     def test_track_visit_human(self, mock_send):
         """cli-hub call event sent when not detected as agent."""
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             track_visit(is_agent=False)
             import time
             time.sleep(0.2)
@@ -1535,7 +1576,7 @@ class TestAnalytics:
     @patch("cli_hub.analytics._send_event")
     def test_track_visit_agent(self, mock_send):
         """cli-hub call event captures the agent flag."""
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             track_visit(is_agent=True, command="--version")
             import time
             time.sleep(0.2)
@@ -1556,7 +1597,7 @@ class TestAnalytics:
 
     @patch("cli_hub.analytics._parent_process_commands", return_value=["/usr/local/bin/codex --run"])
     def test_detect_agent_from_parent_process(self, mock_cmds):
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             context = detect_invocation_context()
             assert context["is_agent"] is True
             assert context["reason"] == "codex-process"
@@ -1579,7 +1620,7 @@ class TestAnalytics:
     @patch("cli_hub.analytics._parent_process_commands")
     def test_detect_agent_from_expanded_parent_process_names(self, mock_cmds, command, expected_reason):
         mock_cmds.return_value = [command]
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             context = detect_invocation_context()
             assert context["is_agent"] is True
             assert context["reason"] == expected_reason
@@ -1588,14 +1629,14 @@ class TestAnalytics:
     @patch("cli_hub.analytics._parent_process_commands", return_value=[])
     def test_detect_not_agent_clean_env(self, mock_cmds):
         """Clean env with a tty should not detect as agent."""
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             with patch("sys.stdin") as mock_stdin:
                 mock_stdin.isatty.return_value = True
                 assert _detect_is_agent() is False
 
     @patch("cli_hub.analytics._parent_process_commands", return_value=[])
     def test_detect_non_tty_is_agent(self, mock_cmds):
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             with patch("sys.stdin") as mock_stdin:
                 mock_stdin.isatty.return_value = False
                 context = detect_invocation_context()
@@ -1615,7 +1656,7 @@ class TestAnalytics:
             "stdin_tty": False,
             "is_interactive": False,
         }
-        with patch.dict(os.environ, {}, clear=True):
+        with _clean_environment():
             track_visit(command="search", detection=detection)
             import time
             time.sleep(0.2)
@@ -1630,7 +1671,7 @@ class TestAnalytics:
     @patch("cli_hub.analytics._send_event")
     def test_first_run_sends_event(self, mock_send, tmp_path):
         """First invocation sends cli-hub-installed event."""
-        with patch.dict(os.environ, {"HOME": str(tmp_path)}, clear=False):
+        with _clean_environment(tmp_path):
             track_first_run()
             import time
             time.sleep(0.2)
@@ -1646,8 +1687,8 @@ class TestAnalytics:
         """Second invocation does NOT send cli-hub-installed event."""
         cli_hub_dir = tmp_path / ".cli-hub"
         cli_hub_dir.mkdir()
-        (cli_hub_dir / ".first_run_sent").write_text("0.1.0")
-        with patch.dict(os.environ, {"HOME": str(tmp_path)}, clear=False):
+        (cli_hub_dir / ".first_run_sent").write_text("0.1.0", encoding="utf-8")
+        with _clean_environment(tmp_path):
             track_first_run()
             import time
             time.sleep(0.2)
@@ -1742,7 +1783,7 @@ class TestCLI:
     @patch("cli_hub.cli.detect_invocation_context")
     @patch("cli_hub.cli.get_matrix", return_value=SAMPLE_MATRIX_REGISTRY["matrices"][0])
     @patch("cli_hub.cli.get_installed", return_value={"gimp": {"version": "1.0.0"}})
-    @patch("cli_hub.cli.get_rendered_matrix_skill_path", return_value=Path("/tmp/video-creation.SKILL.md"))
+    @patch("cli_hub.cli.get_rendered_matrix_skill_path")
     @patch("pathlib.Path.exists", return_value=True)
     def test_matrix_info_command(
         self,
@@ -1753,13 +1794,16 @@ class TestCLI:
         mock_detect,
         mock_visit,
         mock_first_run,
+        tmp_path,
     ):
+        rendered_path = tmp_path / "video-creation.SKILL.md"
+        mock_rendered.return_value = rendered_path
         mock_detect.return_value = self.human_detection
         result = self.runner.invoke(main, ["matrix", "info", "video-creation"])
         assert "Video Creation & Editing" in result.output
         assert "cli-hub matrix install video-creation" in result.output
         assert "cli-hub-matrix/video-creation/SKILL.md" in result.output
-        assert "Local skill: /tmp/video-creation.SKILL.md" in result.output
+        assert f"Local skill: {rendered_path}" in result.output
         assert "Capabilities:" in result.output
         assert "package.thumbnail" in result.output
         assert "Known Gaps:" in result.output

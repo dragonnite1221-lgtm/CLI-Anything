@@ -779,6 +779,7 @@
       "package_manager": "npm",
       "install_strategy": "command",
       "install_cmd": "npm install -g ./sketch/agent-harness",
+      "install_cwd": "repository_root",
       "entry_point": "sketch-cli",
       "skill_md": null,
       "category": "design",

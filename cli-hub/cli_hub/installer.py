@@ -15,6 +15,7 @@ from cli_hub.matrix_skill import render_matrix_skill_file
 
 INSTALLED_FILE = Path.home() / ".cli-hub" / "installed.json"
 MATRIX_STATE_FILE = Path.home() / ".cli-hub" / "matrix_state.json"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _load_installed():
@@ -121,7 +122,7 @@ def _invokes_shell_payload(argv):
     return False
 
 
-def _run_command(cmd, *, allow_shell=False):
+def _run_command(cmd, *, allow_shell=False, cwd=None):
     """Run a command string.
 
     Simple commands run without a shell. Commands containing shell operators
@@ -158,6 +159,7 @@ def _run_command(cmd, *, allow_shell=False):
             capture_output=True,
             text=True,
             shell=use_shell,
+            cwd=cwd,
         )
     except FileNotFoundError as exc:
         missing = exc.filename or shlex.split(cmd)[0]
@@ -200,10 +202,27 @@ def _generic_install(cli):
     install_cmd = cli.get("install_cmd")
     if not install_cmd:
         return False, f"No install command is defined for {cli['display_name']}."
-    result = _run_command(install_cmd, allow_shell=_allows_shell(cli))
+    cwd, cwd_error = _resolve_command_cwd(cli.get("install_cwd"))
+    if cwd_error:
+        return False, cwd_error
+    result = _run_command(install_cmd, allow_shell=_allows_shell(cli), cwd=cwd)
     if result.returncode == 0:
         return True, f"Installed {cli['display_name']} ({cli['entry_point']})"
     return False, f"Install failed:\n{result.stderr or result.stdout}"
+
+
+def _resolve_command_cwd(value):
+    """Resolve a reviewed registry working-directory marker."""
+    if value is None:
+        return None, None
+    if value != "repository_root":
+        return None, f"Unsupported registry command working directory: {value}"
+    if not (REPOSITORY_ROOT / "registry.json").is_file():
+        return None, (
+            "This install requires a CLI-Anything source checkout; "
+            "registry.json was not found beside the installed cli-hub package."
+        )
+    return REPOSITORY_ROOT, None
 
 
 def _generic_uninstall(cli):

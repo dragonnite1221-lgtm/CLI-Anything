@@ -2,6 +2,7 @@
 
 import json
 import os
+import shlex
 import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -52,6 +53,8 @@ from cli_hub.installer import (
     _load_installed,
     _save_installed,
     _run_command,
+    _contains_shell_operator,
+    _invokes_shell_payload,
     _install_strategy,
     _UV_INSTALL_HINT,
 )
@@ -1167,6 +1170,7 @@ SKETCH_CLI = {
     "install_strategy": "command",
     "package_manager": "npm",
     "install_cmd": "npm install -g ./sketch/agent-harness",
+    "install_cwd": "repository_root",
 }
 
 
@@ -1342,6 +1346,42 @@ class TestScriptStrategy:
         _, kwargs = mock_run.call_args
         assert args == ["npm", "install", "-g", "./sketch/agent-harness"]
         assert kwargs.get("shell") is False or kwargs.get("shell") is None
+        assert kwargs["cwd"] == Path(__file__).resolve().parents[2]
+
+    @patch("cli_hub.installer.subprocess.run")
+    @patch("cli_hub.installer.get_cli")
+    def test_install_sketch_fails_clearly_without_source_checkout(
+        self, mock_get_cli, mock_run, tmp_path
+    ):
+        mock_get_cli.return_value = SKETCH_CLI
+        with patch("cli_hub.installer.REPOSITORY_ROOT", tmp_path):
+            success, msg = install_cli("sketch")
+
+        assert not success
+        assert "source checkout" in msg
+        mock_run.assert_not_called()
+
+    @pytest.mark.parametrize("registry_name", ["registry.json", "public_registry.json"])
+    def test_registry_shell_commands_declare_trust(self, registry_name):
+        """Every registry shell payload must opt in explicitly."""
+        registry_path = Path(__file__).resolve().parents[2] / registry_name
+        entries = json.loads(registry_path.read_text(encoding="utf-8"))["clis"]
+        missing = []
+        for cli in entries:
+            for field in ("install_cmd", "uninstall_cmd", "update_cmd"):
+                command = cli.get(field)
+                if not command:
+                    continue
+                try:
+                    argv = shlex.split(command)
+                except ValueError:
+                    argv = []
+                if (
+                    _contains_shell_operator(command)
+                    or _invokes_shell_payload(argv)
+                ) and cli.get("requires_shell") is not True:
+                    missing.append(f"{cli['name']}:{field}")
+        assert not missing, f"commands missing requires_shell=true: {missing}"
 
     @patch("cli_hub.installer.subprocess.run")
     @patch("cli_hub.installer.get_cli")

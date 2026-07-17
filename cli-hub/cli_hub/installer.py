@@ -69,6 +69,7 @@ _UV_INSTALL_HINT = (
 _ALLOW_SHELL_ENV = "CLI_HUB_ALLOW_SHELL_COMMANDS"
 _POSIX_SHELLS = {"bash", "dash", "ksh", "sh", "zsh"}
 _WINDOWS_SHELLS = {"cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe"}
+_COMMAND_WRAPPERS = {"env", "sudo"}
 
 
 def _contains_shell_operator(cmd):
@@ -115,8 +116,8 @@ def _allows_shell(cli):
     return bool(cli and cli.get("requires_shell") is True)
 
 
-def _invokes_shell_payload(argv):
-    """Return True when argv explicitly asks a shell to interpret a payload."""
+def _directly_invokes_shell_payload(argv):
+    """Return True when argv starts a shell that will interpret a payload."""
     if not argv:
         return False
     executable = Path(argv[0]).name.lower()
@@ -142,6 +143,20 @@ def _invokes_shell_payload(argv):
             for option in options
         )
     return False
+
+
+def _invokes_shell_payload(argv):
+    """Return True for direct or wrapped shell payload invocations."""
+    if _directly_invokes_shell_payload(argv):
+        return True
+    if not argv or Path(argv[0]).name.lower() not in _COMMAND_WRAPPERS:
+        return False
+    shells = _POSIX_SHELLS | _WINDOWS_SHELLS
+    return any(
+        Path(arg).name.lower() in shells
+        and _directly_invokes_shell_payload(argv[index:])
+        for index, arg in enumerate(argv[1:], start=1)
+    )
 
 
 def _run_command(cmd, *, allow_shell=False, cwd=None):

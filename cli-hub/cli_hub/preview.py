@@ -11,6 +11,7 @@ import subprocess
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
+from urllib.parse import unquote
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -640,7 +641,10 @@ def render_session_text(session_ref: str) -> str:
 def _resolve_bundle_artifact(bundle_dir: Path, artifact_path: str) -> Optional[Path]:
     if not isinstance(artifact_path, str) or not artifact_path.strip():
         return None
-    if "\x00" in artifact_path:
+    decoded_path = unquote(artifact_path)
+    if "\x00" in decoded_path or "\\" in decoded_path:
+        return None
+    if any(segment == ".." for segment in decoded_path.split("/")):
         return None
     raw_path = Path(artifact_path)
     if raw_path.is_absolute():

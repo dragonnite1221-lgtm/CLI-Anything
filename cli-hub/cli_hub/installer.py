@@ -136,18 +136,65 @@ def _directly_invokes_shell_payload(argv):
         return bool(options & {"/c", "/k"})
     if executable in _WINDOWS_SHELLS:
         payload_parameters = ("command", "commandwithargs", "encodedcommand")
+        payload_aliases = {"cwa"}
         return any(
-            option.startswith("-")
-            and bool(parameter := option.lstrip("-"))
-            and any(name.startswith(parameter) for name in payload_parameters)
+            option.startswith(("-", "/"))
+            and bool(parameter := option.lstrip("-/"))
+            and (
+                parameter in payload_aliases
+                or any(name.startswith(parameter) for name in payload_parameters)
+            )
             for option in options
         )
+    return False
+
+
+def _iter_env_split_strings(argv):
+    """Yield GNU env -S/--split-string payloads embedded in argv."""
+    if not argv or Path(argv[0]).name.lower() != "env":
+        return
+    index = 1
+    while index < len(argv):
+        arg = argv[index]
+        if arg == "--":
+            return
+        if arg == "-S":
+            if index + 1 < len(argv):
+                yield argv[index + 1]
+                index += 2
+                continue
+            return
+        if arg.startswith("-S") and len(arg) > 2:
+            yield arg[2:]
+            index += 1
+            continue
+        if arg == "--split-string":
+            if index + 1 < len(argv):
+                yield argv[index + 1]
+                index += 2
+                continue
+            return
+        if arg.startswith("--split-string="):
+            yield arg.split("=", 1)[1]
+        index += 1
+
+
+def _env_split_invokes_shell_payload(argv):
+    for split_string in _iter_env_split_strings(argv):
+        try:
+            split_argv = shlex.split(split_string)
+        except ValueError:
+            return True
+        if _invokes_shell_payload(split_argv):
+            return True
     return False
 
 
 def _invokes_shell_payload(argv):
     """Return True for direct or wrapped shell payload invocations."""
     if _directly_invokes_shell_payload(argv):
+        return True
+    if _env_split_invokes_shell_payload(argv):
         return True
     if not argv or Path(argv[0]).name.lower() not in _COMMAND_WRAPPERS:
         return False

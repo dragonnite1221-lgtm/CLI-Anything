@@ -21,7 +21,6 @@ from cli_hub.matrix import (
     capability_matches,
     check_provider_requirements,
     fetch_matrix_registry,
-    fetch_all_matrices,
     get_matrix,
     preflight_matrix,
     provider_cli_name,
@@ -49,16 +48,13 @@ from cli_hub.preview import (
 )
 from cli_hub.installer import (
     install_cli,
-    install_matrix,
     uninstall_cli,
-    get_installed,
     _load_installed,
     _save_installed,
     _run_command,
     _contains_shell_operator,
     _invokes_shell_payload,
     _install_strategy,
-    _UV_INSTALL_HINT,
 )
 from cli_hub.analytics import _is_enabled, track_event, track_install, track_uninstall as analytics_track_uninstall, track_visit, track_first_run, _detect_is_agent, detect_invocation_context
 from cli_hub.cli import main
@@ -1337,10 +1333,15 @@ class TestScriptStrategy:
             "sudo sh -c 'echo ok; whoami'",
             "env VAR=value bash -lc 'echo ok; whoami'",
             "sudo -u root sh -ec 'echo ok; whoami'",
+            "env -S 'sh -c \"echo ok; whoami\"'",
+            "env --split-string='bash -lc \"echo ok; whoami\"'",
             'cmd /c "echo ok & whoami"',
             'pwsh -Command "Write-Output ok; whoami"',
             'pwsh -Com "Write-Output ok; whoami"',
+            'powershell /Command "Write-Output ok; whoami"',
             "powershell -EncodedCo ZQBjAGgAbwAgAG8AawA=",
+            "powershell /EncodedCommand ZQBjAGgAbwAgAG8AawA=",
+            'pwsh -cwa "Write-Output ok; whoami"',
         ],
     )
     @patch("cli_hub.installer.subprocess.run")
@@ -2072,6 +2073,7 @@ class TestCLI:
         """When agent env detected, track_visit is called with the new cli-hub call metadata."""
         mock_detect.return_value = self.agent_detection
         result = self.runner.invoke(main, ["--version"])
+        assert result.exit_code == 0
         mock_visit.assert_called_once_with(command="--version", detection=self.agent_detection)
 
     @patch("cli_hub.cli.track_first_run")
@@ -2098,6 +2100,7 @@ class TestCLI:
         """launch execs the CLI entry point, passing through extra args."""
         mock_detect.return_value = self.human_detection
         result = self.runner.invoke(main, ["launch", "jimeng", "login"])
+        assert result.exit_code == 0
         mock_execvp.assert_called_once_with("dreamina", ["dreamina", "login"])
 
     @patch("cli_hub.cli.track_first_run")

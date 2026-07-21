@@ -69,7 +69,41 @@ _UV_INSTALL_HINT = (
 _ALLOW_SHELL_ENV = "CLI_HUB_ALLOW_SHELL_COMMANDS"
 _POSIX_SHELLS = {"bash", "dash", "ksh", "sh", "zsh"}
 _WINDOWS_SHELLS = {"cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe"}
-_COMMAND_WRAPPERS = {"env", "sudo"}
+
+# Programs that run another program given as their trailing operands. Reaching
+# the real executable means walking past the wrapper rather than trusting
+# argv[0], and wrappers nest (``sudo env -S ...``), so the walk recurses.
+_COMMAND_WRAPPERS = {
+    "env",
+    "sudo",
+    "doas",
+    "timeout",
+    "nohup",
+    "nice",
+    "ionice",
+    "setsid",
+    "stdbuf",
+    "chrt",
+    "eatmydata",
+    "proxychains",
+    "proxychains4",
+}
+
+# Programs that hand a string to a shell themselves, via -c/--command, without
+# being a shell. su(1) and runuser(1) document "-c, --command <command>" as
+# passing that command to the target user's shell.
+_SHELL_COMMAND_LAUNCHERS = {"su", "runuser", "doas"}
+
+# PowerShell payload switches. Microsoft documents these as aliases rather than
+# prefixes, so "ec" cannot be found by prefix-matching "encodedcommand", and
+# about_PowerShell_exe allows either "-" or "/" for parameters under cmd.exe.
+_PWSH_PAYLOAD_PARAMETERS = ("command", "commandwithargs", "encodedcommand", "file")
+_PWSH_PAYLOAD_ALIASES = {"c", "cwa", "e", "ec", "enc", "f"}
+
+# Depth bound for wrapper unwrapping. Exceeding it means the command nests
+# wrappers beyond anything a registry entry legitimately needs, so the gate
+# fails closed rather than guessing.
+_MAX_WRAPPER_DEPTH = 8
 
 
 def _contains_shell_operator(cmd):
@@ -135,14 +169,26 @@ def _directly_invokes_shell_payload(argv):
     if executable in {"cmd", "cmd.exe"}:
         return bool(options & {"/c", "/k"})
     if executable in _WINDOWS_SHELLS:
-        payload_parameters = ("command", "commandwithargs", "encodedcommand")
-        payload_aliases = {"cwa"}
         return any(
             option.startswith(("-", "/"))
             and bool(parameter := option.lstrip("-/"))
             and (
-                parameter in payload_aliases
-                or any(name.startswith(parameter) for name in payload_parameters)
+                parameter in _PWSH_PAYLOAD_ALIASES
+                or any(name.startswith(parameter) for name in _PWSH_PAYLOAD_PARAMETERS)
+            )
+            for option in options
+        )
+    if executable in _SHELL_COMMAND_LAUNCHERS:
+        # su/runuser do not interpret the string themselves; they hand it to the
+        # target user's shell with -c, so the payload is shell-interpreted all
+        # the same.
+        return any(
+            option in {"-c", "--command"}
+            or option.startswith("--command=")
+            or (
+                option.startswith("-")
+                and not option.startswith("--")
+                and "c" in option[1:]
             )
             for option in options
         )
@@ -179,31 +225,98 @@ def _iter_env_split_strings(argv):
         index += 1
 
 
-def _env_split_invokes_shell_payload(argv):
+def _env_split_invokes_shell_payload(argv, *, _depth=0):
     for split_string in _iter_env_split_strings(argv):
         try:
             split_argv = shlex.split(split_string)
         except ValueError:
             return True
-        if _invokes_shell_payload(split_argv):
+        if _contains_shell_operator(split_string):
+            return True
+        if _invokes_shell_payload(split_argv, _depth=_depth + 1):
             return True
     return False
 
 
-def _invokes_shell_payload(argv):
-    """Return True for direct or wrapped shell payload invocations."""
+def _strip_wrapper_arguments(argv):
+    """Return argv positioned at the program a wrapper will actually exec.
+
+    Wrappers take their own options before the command, and some of those
+    options take a value (``timeout --signal TERM 5 sh -c ...``, ``env -u VAR``,
+    ``sudo -u root``). Scanning the whole argv for a shell name instead of
+    walking to the wrapped program is what let ``sudo env -S '...'`` through:
+    the shell never appears as a bare token there.
+    """
+    value_taking = {
+        "-u", "--user", "-g", "--group", "--preserve-env", "-C", "--close-from",
+        "-s", "--signal", "-k", "--kill-after", "--chdir", "-D", "-R", "--chroot",
+        "-p", "--prompt", "-i", "--ignore-environment", "-n", "--niceness",
+        "-o", "--output", "-e", "--error",
+    }
+    wrapper = Path(argv[0]).name.lower()
+    index = 1
+    while index < len(argv):
+        arg = argv[index]
+        if arg == "--":
+            return argv[index + 1 :]
+        if not arg.startswith("-"):
+            # env(1) and sudo(1) accept NAME=VALUE assignments before the
+            # command, so the first bare token is not necessarily the program.
+            if _is_env_assignment(arg):
+                index += 1
+                continue
+            # timeout(1) takes a duration operand before the command.
+            if wrapper == "timeout" and _looks_like_duration(arg):
+                index += 1
+                continue
+            return argv[index:]
+        if arg in value_taking:
+            index += 2
+            continue
+        index += 1
+    return []
+
+
+def _is_env_assignment(token):
+    """True for ``NAME=VALUE`` operands that env/sudo consume before the command."""
+    name, sep, _ = token.partition("=")
+    return bool(sep) and bool(name) and (name[0].isalpha() or name[0] == "_") and all(
+        ch.isalnum() or ch == "_" for ch in name
+    )
+
+
+def _looks_like_duration(token):
+    """True for timeout(1) durations such as ``5``, ``2.5``, ``10s``, ``1h``."""
+    body = token[:-1] if token[-1:] in {"s", "m", "h", "d"} else token
+    try:
+        float(body)
+    except ValueError:
+        return False
+    return True
+
+
+def _invokes_shell_payload(argv, _depth=0):
+    """Return True for direct, wrapped or nested shell payload invocations.
+
+    Wrappers nest and each layer can hide the next (``sudo env -S 'sh -c ...'``),
+    so this walks through them rather than inspecting a single level. The depth
+    bound fails closed: a command nesting wrappers deeper than any real registry
+    entry needs is treated as requiring shell trust rather than waved through.
+    """
+    if not argv:
+        return False
+    if _depth > _MAX_WRAPPER_DEPTH:
+        return True
     if _directly_invokes_shell_payload(argv):
         return True
-    if _env_split_invokes_shell_payload(argv):
+    if _env_split_invokes_shell_payload(argv, _depth=_depth):
         return True
-    if not argv or Path(argv[0]).name.lower() not in _COMMAND_WRAPPERS:
+    if Path(argv[0]).name.lower() not in _COMMAND_WRAPPERS:
         return False
-    shells = _POSIX_SHELLS | _WINDOWS_SHELLS
-    return any(
-        Path(arg).name.lower() in shells
-        and _directly_invokes_shell_payload(argv[index:])
-        for index, arg in enumerate(argv[1:], start=1)
-    )
+    wrapped = _strip_wrapper_arguments(argv)
+    if not wrapped:
+        return False
+    return _invokes_shell_payload(wrapped, _depth=_depth + 1)
 
 
 def _run_command(cmd, *, allow_shell=False, cwd=None):

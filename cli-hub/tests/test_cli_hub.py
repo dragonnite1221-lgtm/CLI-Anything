@@ -1342,6 +1342,28 @@ class TestScriptStrategy:
             "powershell -EncodedCo ZQBjAGgAbwAgAG8AawA=",
             "powershell /EncodedCommand ZQBjAGgAbwAgAG8AawA=",
             'pwsh -cwa "Write-Output ok; whoami"',
+            # Launchers that run their trailing operands. Scanning only argv[0]
+            # or a fixed {env, sudo} set let these through.
+            "timeout 5 sh -c 'echo ok; whoami'",
+            "timeout --signal TERM 5 sh -c 'echo ok; whoami'",
+            "nohup sh -c 'echo ok; whoami'",
+            "nice -n 10 sh -c 'echo ok; whoami'",
+            "setsid sh -c 'echo ok; whoami'",
+            "doas sh -c 'echo ok; whoami'",
+            # su/runuser are not shells, but -c hands the string to one.
+            "su -c 'echo ok; whoami'",
+            "su --command 'echo ok; whoami'",
+            "runuser -c 'echo ok; whoami'",
+            "runuser -u root -c 'echo ok; whoami'",
+            # Wrappers nest, and env -S re-splits its own argument.
+            "sudo env -S 'sh -c \"echo ok; whoami\"'",
+            "timeout 5 env -S 'bash -lc \"echo ok; whoami\"'",
+            "sudo timeout 5 sh -c 'echo ok; whoami'",
+            # PowerShell documents these as aliases, so prefix matching
+            # ("encodedcommand".startswith("ec") is False) never reached them.
+            "pwsh -ec ZQBjAGgAbwAgAG8AawA=",
+            "powershell /ec ZQBjAGgAbwAgAG8AawA=",
+            "pwsh -e ZQBjAGgAbwAgAG8AawA=",
         ],
     )
     @patch("cli_hub.installer.subprocess.run")
@@ -1351,6 +1373,42 @@ class TestScriptStrategy:
         assert result.returncode == 2
         assert "requires_shell=true" in result.stderr
         mock_run.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "npm install -g @anthropic-ai/claude-code",
+            "pip install uv",
+            "uv tool install ruff",
+            "cargo install ripgrep",
+            "go install github.com/example/tool@latest",
+            # Wrappers used the ordinary way: the wrapped program is not a shell.
+            "sudo apt-get install -y jq",
+            "sudo -u postgres createdb example",
+            "env FOO=1 npm install -g example",
+            "env -u NODE_OPTIONS npm install -g example",
+            "timeout 30 npm install -g example",
+            "nohup npm install -g example",
+            "nice -n 5 cargo install ripgrep",
+            # A flag containing "c" on a non-shell program must not look like sh -c.
+            "npm ci --omit=dev",
+            "docker compose up -d",
+        ],
+    )
+    @patch("cli_hub.installer.subprocess.run")
+    def test_run_command_allows_plain_installs_without_shell_trust(self, mock_run, command):
+        """The trust gate must not swallow ordinary installs.
+
+        Every hardening round widens what counts as a shell payload, so pin the
+        other side too: these commands invoke no shell and must keep running
+        without requires_shell.
+        """
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        result = _run_command(command)
+        assert result.returncode == 0
+        mock_run.assert_called_once()
+        _, kwargs = mock_run.call_args
+        assert kwargs.get("shell") is False
 
     @patch("cli_hub.installer.subprocess.run")
     def test_run_command_allows_reviewed_explicit_shell_payload(self, mock_run):

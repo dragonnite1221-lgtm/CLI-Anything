@@ -1,39 +1,33 @@
 #!/usr/bin/env python3
-"""Browser CLI — A command-line interface for browser automation via DOMShell MCP.
+"""Browser CLI entry point for DOMShell-backed browser automation."""
 
-This CLI provides filesystem-first browser automation using Chrome's Accessibility Tree.
-Navigate web pages using familiar shell commands: ls, cd, cat, grep, click.
+from __future__ import annotations
 
-Usage:
-    # One-shot commands
-    cli-anything-browser page open https://example.com
-    cli-anything-browser fs ls /
-    cli-anything-browser act click /main/button[0]
-    cli-anything-browser --json fs cat /main/title
-
-    # Interactive REPL
-    cli-anything-browser
-"""
-
-import sys
 import json
-import shlex
-import click
+import sys
 from typing import Optional
 
+import click
+
+from cli_anything.browser.browser_cli_act import register_act_commands
+from cli_anything.browser.browser_cli_fs import register_fs_commands
+from cli_anything.browser.browser_cli_page import register_page_commands
+from cli_anything.browser.browser_cli_repl import register_repl_command
+from cli_anything.browser.browser_cli_secure import register_secure_commands
+from cli_anything.browser.browser_cli_session import register_session_commands
 from cli_anything.browser.core.session import Session
-from cli_anything.browser.core import page as page_mod
-from cli_anything.browser.core import fs as fs_mod
 from cli_anything.browser.utils import domshell_backend as backend
 
-# Global state
+
 _session: Optional[Session] = None
 _json_output = False
 _repl_mode = False
-_availability_cached: Optional[tuple[bool, str]] = None  # Cache for REPL mode
+_availability_cached: Optional[tuple[bool, str]] = None
 
 
 def get_session() -> Session:
+    """Return the process-local browser session."""
+
     global _session
     if _session is None:
         _session = Session()
@@ -41,6 +35,8 @@ def get_session() -> Session:
 
 
 def output(data, message: str = ""):
+    """Render command data in the selected human or JSON format."""
+
     if _json_output:
         click.echo(json.dumps(data, indent=2, default=str))
     else:
@@ -54,417 +50,115 @@ def output(data, message: str = ""):
             click.echo(str(data))
 
 
-def _print_dict(d: dict, indent: int = 0):
+def _print_dict(data: dict, indent: int = 0):
     prefix = "  " * indent
-    for k, v in d.items():
-        if isinstance(v, dict):
-            click.echo(f"{prefix}{k}:")
-            _print_dict(v, indent + 1)
-        elif isinstance(v, list):
-            click.echo(f"{prefix}{k}:")
-            _print_list(v, indent + 1)
+    for key, value in data.items():
+        if isinstance(value, dict):
+            click.echo(f"{prefix}{key}:")
+            _print_dict(value, indent + 1)
+        elif isinstance(value, list):
+            click.echo(f"{prefix}{key}:")
+            _print_list(value, indent + 1)
         else:
-            click.echo(f"{prefix}{k}: {v}")
+            click.echo(f"{prefix}{key}: {value}")
 
 
 def _print_list(items: list, indent: int = 0):
     prefix = "  " * indent
-    for i, item in enumerate(items):
+    for index, item in enumerate(items):
         if isinstance(item, dict):
-            click.echo(f"{prefix}[{i}]")
+            click.echo(f"{prefix}[{index}]")
             _print_dict(item, indent + 1)
         else:
             click.echo(f"{prefix}- {item}")
 
 
 def handle_error(func):
+    """Keep command errors compatible with JSON and REPL output modes."""
+
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except RuntimeError as e:
-            if _json_output:
-                click.echo(json.dumps({"error": str(e), "type": "runtime_error"}))
-            else:
-                click.echo(f"Error: {e}", err=True)
-            if not _repl_mode:
-                sys.exit(1)
-        except (ValueError, IndexError) as e:
-            if _json_output:
-                click.echo(json.dumps({"error": str(e), "type": type(e).__name__}))
-            else:
-                click.echo(f"Error: {e}", err=True)
-            if not _repl_mode:
-                sys.exit(1)
+        except RuntimeError as error:
+            _report_error(error, "runtime_error")
+        except (ValueError, IndexError) as error:
+            _report_error(error, type(error).__name__)
+
     wrapper.__name__ = func.__name__
     wrapper.__doc__ = func.__doc__
     return wrapper
 
 
-# ── Main CLI Group ──────────────────────────────────────────────
+def _report_error(error: Exception, error_type: str) -> None:
+    if _json_output:
+        click.echo(json.dumps({"error": str(error), "type": error_type}))
+    else:
+        click.echo(f"Error: {error}", err=True)
+    if not _repl_mode:
+        sys.exit(1)
+
+
 @click.group(invoke_without_command=True)
 @click.option("--json", "use_json", is_flag=True, help="Output as JSON")
-@click.option("--daemon", "use_daemon", is_flag=True,
-              help="Use persistent daemon mode (faster for interactive use)")
+@click.option("--daemon", "use_daemon", is_flag=True, help="Use persistent daemon mode")
 @click.pass_context
 def cli(ctx, use_json, use_daemon):
-    """Browser CLI — Filesystem-first browser automation via DOMShell.
+    """Browser CLI — filesystem-first browser automation via DOMShell."""
 
-    Run without a subcommand to enter interactive REPL mode.
-    """
     global _json_output, _session, _availability_cached
     _json_output = use_json
-
-    # Check DOMShell availability (skip for help/version to allow viewing docs without DOMShell)
-    # Cache the result for REPL mode to avoid repeated local runtime checks.
-    if '--help' not in sys.argv and '--version' not in sys.argv and ctx.invoked_subcommand != "secure":
+    if "--help" not in sys.argv and "--version" not in sys.argv and ctx.invoked_subcommand != "secure":
         if _availability_cached is None:
             _availability_cached = backend.is_available()
-        available, msg = _availability_cached
+        available, message = _availability_cached
         if not available:
-            if _json_output:
-                click.echo(json.dumps({"error": msg, "type": "dependency_error"}))
-            else:
-                click.echo(f"Error: {msg}", err=True)
-                click.echo("\nSee `cli-anything-browser secure status` for secure-runtime setup.")
-            sys.exit(1)
-
-    # Initialize session with daemon mode
+            _report_dependency_error(message)
     _session = get_session()
     if use_daemon:
-        try:
-            backend.start_daemon()
-            _session.enable_daemon()
-            if not _json_output:
-                click.echo("Daemon mode: persistent MCP connection active")
-        except RuntimeError as e:
-            if _json_output:
-                click.echo(json.dumps({"error": str(e), "type": "daemon_error"}))
-            else:
-                click.echo(f"Daemon start failed: {e}", err=True)
-                click.echo("Falling back to per-command mode", err=True)
-
+        _enable_daemon_mode()
     if ctx.invoked_subcommand is None:
         ctx.invoke(repl)
 
 
-# ── Page Commands ───────────────────────────────────────────────
-@cli.group()
-def page():
-    """Page navigation commands."""
-    pass
-
-
-@page.command("open")
-@click.argument("url")
-@handle_error
-def page_open(url):
-    """Open a URL in Chrome."""
-    sess = get_session()
-    result = page_mod.open_page(sess, url)
-    output(result, f"Opened: {url}")
-
-
-@page.command("reload")
-@handle_error
-def page_reload():
-    """Reload the current page."""
-    sess = get_session()
-    result = page_mod.reload_page(sess)
-    output(result, "Page reloaded")
-
-
-@page.command("back")
-@handle_error
-def page_back():
-    """Navigate back in history."""
-    sess = get_session()
-    result = page_mod.go_back(sess)
-    if "error" in result:
-        output(result, result["error"])
-    else:
-        output(result, "Navigated back")
-
-
-@page.command("forward")
-@handle_error
-def page_forward():
-    """Navigate forward in history."""
-    sess = get_session()
-    result = page_mod.go_forward(sess)
-    if "error" in result:
-        output(result, result["error"])
-    else:
-        output(result, "Navigated forward")
-
-
-@page.command("info")
-@handle_error
-def page_info():
-    """Show current page information."""
-    sess = get_session()
-    result = page_mod.get_page_info(sess)
-    output(result)
-
-
-# ── Filesystem Commands ──────────────────────────────────────────
-@cli.group()
-def fs():
-    """Filesystem navigation commands (Accessibility Tree)."""
-    pass
-
-
-@fs.command("ls")
-@click.argument("path", default="", required=False)
-@handle_error
-def fs_ls(path):
-    """List elements at a path in the accessibility tree."""
-    sess = get_session()
-    result = fs_mod.list_elements(sess, path)
+def _report_dependency_error(message: str) -> None:
     if _json_output:
-        output(result)
+        click.echo(json.dumps({"error": message, "type": "dependency_error"}))
     else:
-        entries = result.get("entries", [])
-        if not entries:
-            click.echo(f"No elements at {path or sess.working_dir}")
-            return
-        click.echo(f"{'NAME':<40} {'ROLE':<20} {'PATH'}")
-        click.echo("─" * 80)
-        for entry in entries:
-            name = entry.get("name", "")
-            role = entry.get("role", "")
-            entry_path = entry.get("path", "")
-            click.echo(f"{name:<40} {role:<20} {entry_path}")
+        click.echo(f"Error: {message}", err=True)
+        click.echo("\nSee `cli-anything-browser secure status` for secure-runtime setup.")
+    sys.exit(1)
 
 
-@fs.command("cd")
-@click.argument("path")
-@handle_error
-def fs_cd(path):
-    """Change directory in the accessibility tree."""
-    sess = get_session()
-    result = fs_mod.change_directory(sess, path)
-    if "error" in result:
-        output(result, result["error"])
-    else:
-        output(result, f"Changed to: {sess.working_dir}")
-
-
-@fs.command("cat")
-@click.argument("path", default="", required=False)
-@handle_error
-def fs_cat(path):
-    """Read element content from the accessibility tree."""
-    sess = get_session()
-    result = fs_mod.read_element(sess, path)
-    output(result)
-
-
-@fs.command("grep")
-@click.argument("pattern")
-@click.argument("path", default="", required=False)
-@handle_error
-def fs_grep(pattern, path):
-    """Search for pattern in the accessibility tree."""
-    sess = get_session()
-    result = fs_mod.grep_elements(sess, pattern, path)
-    if _json_output:
-        output(result)
-    else:
-        matches = result.get("matches", [])
-        if not matches:
-            click.echo(f"No matches for '{pattern}'")
-            return
-        click.echo(f"Matches for '{pattern}':")
-        for match in matches:
-            click.echo(f"  {match}")
-
-
-@fs.command("pwd")
-@handle_error
-def fs_pwd():
-    """Print current working directory in accessibility tree."""
-    sess = get_session()
-    click.echo(sess.working_dir)
-
-
-# ── Action Commands ──────────────────────────────────────────────
-@cli.group()
-def act():
-    """Action commands on elements."""
-    pass
-
-
-@act.command("click")
-@click.argument("path")
-@handle_error
-def act_click(path):
-    """Click an element at the given path."""
-    sess = get_session()
-    use_daemon = sess.daemon_mode
-    result = backend.click(path, use_daemon=use_daemon)
-    output(result, f"Clicked: {path}")
-
-
-@act.command("type")
-@click.argument("path")
-@click.argument("text")
-@handle_error
-def act_type(path, text):
-    """Type text into an input element."""
-    sess = get_session()
-    use_daemon = sess.daemon_mode
-    result = backend.type_text(path, text, use_daemon=use_daemon)
-    output(result, f"Typed into: {path}")
-
-
-# ── Session Commands ─────────────────────────────────────────────
-@cli.group()
-def session():
-    """Session management commands."""
-    pass
-
-
-@session.command("status")
-@handle_error
-def session_status():
-    """Show current session status."""
-    sess = get_session()
-    status = sess.status()
-    output(status)
-
-
-@session.command("daemon-start")
-@handle_error
-def session_daemon_start():
-    """Start persistent daemon mode."""
+def _enable_daemon_mode() -> None:
     try:
         backend.start_daemon()
         get_session().enable_daemon()
-        output({"daemon": "started"}, "Daemon mode started")
-    except RuntimeError as e:
-        output({"error": str(e)}, str(e))
+        if not _json_output:
+            click.echo("Daemon mode: persistent MCP connection active")
+    except RuntimeError as error:
+        if _json_output:
+            click.echo(json.dumps({"error": str(error), "type": "daemon_error"}))
+        else:
+            click.echo(f"Daemon start failed: {error}", err=True)
+            click.echo("Falling back to per-command mode", err=True)
 
 
-@session.command("daemon-stop")
-@handle_error
-def session_daemon_stop():
-    """Stop persistent daemon mode."""
-    backend.stop_daemon()
-    get_session().disable_daemon()
-    output({"daemon": "stopped"}, "Daemon mode stopped")
-
-
-# ── Secure Runtime Commands ─────────────────────────────────────
-@cli.group()
-def secure():
-    """Inspect or control the private DNS-pinned browser runtime."""
-    pass
-
-
-@secure.command("status")
-@handle_error
-def secure_status():
-    """Show non-secret state for the managed secure browser runtime."""
-    output(backend.secure_runtime_status())
-
-
-@secure.command("start")
-@handle_error
-def secure_start():
-    """Start the managed browser and its DNS-pinning egress proxy."""
-    available, message = backend.is_available()
-    if not available:
-        raise RuntimeError(message)
-    output(backend.secure_runtime_status(), message)
-
-
-@secure.command("install")
-@handle_error
-def secure_install():
-    """Install the lockfile-verified local DOMShell server runtime."""
-    output(backend.install_secure_runtime(), "Installed verified local DOMShell runtime")
-
-
-@secure.command("stop")
-@handle_error
-def secure_stop():
-    """Stop the managed browser, DOMShell server, and secure egress proxy."""
-    backend.stop_daemon()
-    backend.stop_secure_runtime()
-    output({"managed": False}, "Managed secure runtime stopped")
-
-
-# ── REPL ─────────────────────────────────────────────────────────
-@cli.command()
-@handle_error
-def repl():
-    """Start interactive REPL session."""
-    from cli_anything.browser.utils.repl_skin import ReplSkin
-
+def _set_repl_mode(enabled: bool) -> None:
     global _repl_mode
-    _repl_mode = True
-
-    skin = ReplSkin("browser", version="1.0.0")
-    skin.print_banner()
-
-    pt_session = skin.create_prompt_session()
-
-    _repl_commands = {
-        "page":     "open|reload|back|forward|info",
-        "fs":       "ls|cd|cat|grep|pwd",
-        "act":      "click|type",
-        "session":  "status|daemon-start|daemon-stop",
-        "secure":   "status|start|stop",
-        "help":     "Show this help",
-        "quit":     "Exit REPL",
-    }
-
-    while True:
-        try:
-            sess = get_session()
-            # Show URL and working dir in prompt
-            context = sess.working_dir if sess.working_dir != "/" else "/"
-            if sess.current_url:
-                # Truncate long URLs for prompt
-                url_display = sess.current_url[:40] + "..." if len(sess.current_url) > 40 else sess.current_url
-                context = f"{url_display} {context}"
-
-            line = skin.get_input(pt_session, context=context)
-            if not line:
-                continue
-            if line.lower() in ("quit", "exit", "q"):
-                skin.print_goodbye()
-                break
-            if line.lower() == "help":
-                skin.help(_repl_commands)
-                continue
-
-            # Parse and execute command (preserve quoted arguments)
-            try:
-                args = shlex.split(line)
-            except ValueError:
-                args = line.split()  # Fallback for unbalanced quotes
-            # Propagate --json from top-level to subcommands in REPL
-            if _json_output and '--json' not in args and not any(a.startswith('--json') for a in args):
-                args = ['--json'] + args
-            try:
-                cli.main(args, standalone_mode=False)
-            except SystemExit:
-                pass
-            except click.exceptions.UsageError as e:
-                skin.warning(f"Usage error: {e}")
-            except Exception as e:
-                skin.error(f"{e}")
-
-        except (EOFError, KeyboardInterrupt):
-            skin.print_goodbye()
-            break
-
-    _repl_mode = False
+    _repl_mode = enabled
 
 
-# ── Entry Point ──────────────────────────────────────────────────
+register_page_commands(cli, get_session, output, handle_error)
+register_fs_commands(cli, get_session, output, handle_error, lambda: _json_output)
+register_act_commands(cli, get_session, output, handle_error, backend)
+register_session_commands(cli, get_session, output, handle_error, backend)
+register_secure_commands(cli, output, handle_error, backend)
+repl = register_repl_command(cli, get_session, lambda: _json_output, _set_repl_mode)
+
+
 def main():
+    """Run the browser CLI."""
+
     cli()
 
 

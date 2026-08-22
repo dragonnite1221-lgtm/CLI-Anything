@@ -1,0 +1,52 @@
+name: Publish CLI Hub Skill to DO Spaces
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cli-hub-skill/SKILL.md'
+      - '.github/workflows/publish-cli-hub-skill.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Verify DO Spaces configuration
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET }}
+          DO_SPACES_BUCKET: ${{ secrets.DO_SPACES_BUCKET }}
+          DO_SPACES_ENDPOINT: ${{ secrets.DO_SPACES_ENDPOINT }}
+        run: |
+          missing=()
+          for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY DO_SPACES_BUCKET DO_SPACES_ENDPOINT; do
+            if [ -z "${!name}" ]; then
+              missing+=("$name")
+            fi
+          done
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::DO Spaces publication is not configured: %s\n' "$(IFS=,; echo "${missing[*]}")"
+            exit 1
+          fi
+
+      - name: Install AWS CLI
+        run: pip install --disable-pip-version-check awscli
+
+      - name: Upload SKILL.md to DO Spaces
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DO_SPACES_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DO_SPACES_SECRET }}
+          DO_SPACES_BUCKET: ${{ secrets.DO_SPACES_BUCKET }}
+          DO_SPACES_ENDPOINT: ${{ secrets.DO_SPACES_ENDPOINT }}
+        run: |
+          aws s3 cp cli-hub-skill/SKILL.md \
+            "s3://${DO_SPACES_BUCKET}/SKILL.md" \
+            --endpoint-url "${DO_SPACES_ENDPOINT}" \
+            --acl public-read \
+            --content-type text/markdown

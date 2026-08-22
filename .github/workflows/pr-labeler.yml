@@ -14,20 +14,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out base branch
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.base.ref }}
           persist-credentials: false
 
       - name: Apply computed labels
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const labelPullRequest = require("./.github/scripts/pr-labeler.js");
             await labelPullRequest({ github, context, core });
 
       - name: Apply path labels
-        uses: actions/labeler@v6
+        uses: actions/labeler@b8dd2d9be0f68b860e7dae5dae7d772984eacd6d # v6.0.1
         with:
           configuration-path: .github/labeler.yml
           sync-labels: true

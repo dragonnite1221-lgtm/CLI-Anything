@@ -8,6 +8,8 @@ import os
 from pathlib import Path
 import signal
 
+from cli_anything.browser.utils.secure_egress_proxy_http import relay_http_request
+
 
 async def _relay(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
     try:
@@ -81,8 +83,18 @@ async def handle_proxy_client(
         else:
             host, port, path = parse_http_target(target)
             destination_reader, destination_writer = await open_connection(host, port)
-            destination_writer.write(origin_request_header(method, path, version, lines[1:-2]))
+            headers = lines[1:-2]
+            destination_writer.write(origin_request_header(method, path, version, headers))
             await destination_writer.drain()
+            await relay_http_request(
+                reader,
+                writer,
+                destination_reader,
+                destination_writer,
+                headers,
+                timeout_seconds,
+            )
+            return
     except (
         rejected_error,
         ConnectionError,
@@ -90,6 +102,7 @@ async def handle_proxy_client(
         ValueError,
         IndexError,
         asyncio.IncompleteReadError,
+        asyncio.LimitOverrunError,
     ):
         await _send_error(writer, "403 Forbidden")
         return

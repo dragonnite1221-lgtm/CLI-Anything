@@ -24,11 +24,17 @@ class DestinationRejected(ConnectionError):
 
 @dataclass(frozen=True)
 class PinnedDestination:
-    """The requested hostname and the numeric address selected for connection."""
+    """The requested hostname and its validated numeric connection addresses."""
 
     host: str
     port: int
-    address: str
+    addresses: tuple[str, ...]
+
+    @property
+    def address(self) -> str:
+        """Retain the primary-address API for callers that only need inspection."""
+
+        return self.addresses[0]
 
 
 def _normalise_ip(value: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
@@ -62,26 +68,28 @@ def _global_addresses(host: str, port: int) -> tuple[str, ...]:
 
 
 def resolve_pinned_destination(host: str, port: int) -> PinnedDestination:
-    """Validate a destination and select its first resolved numeric address."""
+    """Validate a destination and retain every resolved numeric address."""
 
     if not isinstance(host, str) or not host or any(char.isspace() for char in host):
         raise DestinationRejected("Destination hostname is invalid")
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise DestinationRejected("Destination port is invalid")
-    return PinnedDestination(host=host, port=port, address=_global_addresses(host, port)[0])
+    return PinnedDestination(host=host, port=port, addresses=_global_addresses(host, port))
 
 
 async def open_pinned_connection(host: str, port: int) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     """Connect to the validated numeric address, never a caller-controlled hostname."""
 
     destination = resolve_pinned_destination(host, port)
-    try:
-        return await asyncio.wait_for(
-            asyncio.open_connection(destination.address, destination.port),
-            timeout=CONNECT_TIMEOUT_SECONDS,
-        )
-    except (OSError, asyncio.TimeoutError) as error:
-        raise ConnectionError("Destination connection failed") from error
+    for address in destination.addresses:
+        try:
+            return await asyncio.wait_for(
+                asyncio.open_connection(address, destination.port),
+                timeout=CONNECT_TIMEOUT_SECONDS,
+            )
+        except (OSError, asyncio.TimeoutError):
+            continue
+    raise ConnectionError("Destination connection failed")
 
 
 def _parse_authority(value: str) -> tuple[str, int]:
@@ -131,8 +139,9 @@ def _origin_request_header(method: str, path: str, version: str, headers: Iterab
         name, separator, _value = header.partition(":")
         if not separator:
             raise DestinationRejected("Proxy request header is malformed")
-        if name.lower() not in {"proxy-connection", "proxy-authorization"}:
+        if name.lower() not in {"connection", "proxy-connection", "proxy-authorization"}:
             forwarded.append(header)
+    forwarded.append("Connection: close")
     return ("\r\n".join(forwarded) + "\r\n\r\n").encode("iso-8859-1")
 
 

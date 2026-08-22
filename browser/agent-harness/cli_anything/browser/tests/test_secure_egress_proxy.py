@@ -63,6 +63,23 @@ def test_pinned_connection_uses_numeric_address(monkeypatch):
     assert seen == [("93.184.216.34", 443)]
 
 
+def test_pinned_connection_tries_each_validated_address(monkeypatch):
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *_args, **_kwargs: _answer("2001:4860:4860::8888", "93.184.216.34"))
+    seen: list[tuple[str, int]] = []
+
+    async def fake_open_connection(host, port):
+        seen.append((host, port))
+        if host == "2001:4860:4860::8888":
+            raise OSError("IPv6 route unavailable")
+        return object(), object()
+
+    monkeypatch.setattr(proxy.asyncio, "open_connection", fake_open_connection)
+
+    asyncio.run(proxy.open_pinned_connection("example.com", 443))
+
+    assert seen == [("2001:4860:4860::8888", 443), ("93.184.216.34", 443)]
+
+
 def test_connect_authority_requires_safe_host_and_port():
     assert proxy._parse_authority("example.com:443") == ("example.com", 443)
     assert proxy._parse_authority("[2001:db8::1]:8443") == ("2001:db8::1", 8443)
@@ -77,7 +94,80 @@ def test_http_proxy_target_is_converted_to_origin_form():
     assert (host, port, path) == ("example.com", 8080, "/a?b=c")
     assert proxy._origin_request_header(
         "GET", path, "HTTP/1.1", ["Host: example.com", "Proxy-Connection: keep-alive"]
-    ) == b"GET /a?b=c HTTP/1.1\r\nHost: example.com\r\n\r\n"
+    ) == b"GET /a?b=c HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n"
+
+
+def test_live_http_proxy_closes_after_one_request(monkeypatch):
+    async def exercise_proxy():
+        received: list[bytes] = []
+
+        async def origin(reader, writer):
+            received.append(await reader.read())
+            writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK")
+            await writer.drain()
+            writer.close()
+
+        origin_server = await asyncio.start_server(origin, "127.0.0.1", 0)
+        origin_port = origin_server.sockets[0].getsockname()[1]
+        monkeypatch.setattr(proxy, "open_pinned_connection", lambda *_args: asyncio.open_connection("127.0.0.1", origin_port))
+        server = await proxy.start_proxy()
+        proxy_port = server.sockets[0].getsockname()[1]
+        try:
+            reader, writer = await asyncio.open_connection("127.0.0.1", proxy_port)
+            writer.write(
+                b"GET http://first.example/a HTTP/1.1\r\nHost: first.example\r\n\r\n"
+                b"GET http://second.example/b HTTP/1.1\r\nHost: second.example\r\n\r\n"
+            )
+            await writer.drain()
+            response = await reader.read()
+            writer.close()
+            await writer.wait_closed()
+            return received, response
+        finally:
+            server.close()
+            await server.wait_closed()
+            origin_server.close()
+            await origin_server.wait_closed()
+
+    received, response = asyncio.run(exercise_proxy())
+
+    assert response.endswith(b"OK")
+    assert received == [b"GET /a HTTP/1.1\r\nHost: first.example\r\nConnection: close\r\n\r\n"]
+
+
+def test_live_http_proxy_forwards_a_framed_request_body(monkeypatch):
+    async def exercise_proxy():
+        received: list[bytes] = []
+
+        async def origin(reader, writer):
+            received.append(await reader.read())
+            writer.write(b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            await writer.drain()
+            writer.close()
+
+        origin_server = await asyncio.start_server(origin, "127.0.0.1", 0)
+        origin_port = origin_server.sockets[0].getsockname()[1]
+        monkeypatch.setattr(proxy, "open_pinned_connection", lambda *_args: asyncio.open_connection("127.0.0.1", origin_port))
+        server = await proxy.start_proxy()
+        proxy_port = server.sockets[0].getsockname()[1]
+        try:
+            reader, writer = await asyncio.open_connection("127.0.0.1", proxy_port)
+            writer.write(b"POST http://example.com/upload HTTP/1.1\r\nHost: example.com\r\nContent-Length: 4\r\n\r\ntest")
+            await writer.drain()
+            response = await reader.read()
+            writer.close()
+            await writer.wait_closed()
+            return received, response
+        finally:
+            server.close()
+            await server.wait_closed()
+            origin_server.close()
+            await origin_server.wait_closed()
+
+    received, response = asyncio.run(exercise_proxy())
+
+    assert response.startswith(b"HTTP/1.1 201 Created")
+    assert received == [b"POST /upload HTTP/1.1\r\nHost: example.com\r\nContent-Length: 4\r\nConnection: close\r\n\r\ntest"]
 
 
 def test_live_proxy_rejects_loopback_connect():

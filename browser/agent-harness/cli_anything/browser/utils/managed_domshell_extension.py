@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import time
 from urllib.parse import urlsplit
-from urllib.request import urlopen
+from urllib.request import ProxyHandler, build_opener
 
 import websocket
 
@@ -33,10 +33,11 @@ def _extension_id(extension: Path) -> str:
 def _extension_options_target(cdp_url: str, extension_id: str) -> str:
     endpoint = f"http://{urlsplit(cdp_url).netloc}/json/list"
     options_url = f"chrome-extension://{extension_id}/options.html"
+    opener = build_opener(ProxyHandler({}))
     deadline = time.monotonic() + 10
     while time.monotonic() < deadline:
         try:
-            with urlopen(endpoint, timeout=1) as response:
+            with opener.open(endpoint, timeout=1) as response:
                 targets = json.load(response)
             for target in targets:
                 if target.get("type") == "page" and target.get("url") == options_url:

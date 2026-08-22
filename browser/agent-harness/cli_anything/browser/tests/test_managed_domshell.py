@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
 from cli_anything.browser.utils import managed_domshell
+from cli_anything.browser.utils import managed_domshell_extension
 
 
 def test_extension_must_be_explicit(monkeypatch):
@@ -40,6 +42,48 @@ def test_extension_directory_must_not_be_group_writable(monkeypatch, tmp_path):
         managed_domshell._extension_dir()
 
 
+def test_extension_assets_must_not_be_group_writable(monkeypatch, tmp_path):
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(
+        json.dumps({"manifest_version": 3, "name": "DOMShell — Browser Filesystem for AI Agents"}),
+        encoding="utf-8",
+    )
+    asset = tmp_path / "service-worker.js"
+    asset.write_text("// unsafe", encoding="utf-8")
+    asset.chmod(0o666)
+    tmp_path.chmod(0o700)
+    monkeypatch.setenv(managed_domshell.DOMSHELL_EXTENSION_ENV, str(tmp_path))
+
+    with pytest.raises(managed_domshell.ManagedDOMShellError, match="asset"):
+        managed_domshell._extension_dir()
+
+
+def test_extension_control_request_bypasses_ambient_proxies(monkeypatch):
+    captured: dict[str, object] = {}
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return json.dumps([{"type": "page", "url": "chrome-extension://expected/options.html", "webSocketDebuggerUrl": "ws://127.0.0.1:1234"}]).encode()
+
+    class Opener:
+        def open(self, endpoint, timeout):
+            captured["endpoint"] = endpoint
+            captured["timeout"] = timeout
+            return Response()
+
+    monkeypatch.setattr(managed_domshell_extension, "ProxyHandler", lambda proxies: captured.setdefault("proxies", proxies) or SimpleNamespace())
+    monkeypatch.setattr(managed_domshell_extension, "build_opener", lambda handler: Opener())
+
+    assert managed_domshell_extension._extension_options_target("ws://127.0.0.1:9222/devtools/browser", "expected") == "ws://127.0.0.1:1234"
+    assert captured["proxies"] == {}
+
+
 def test_existing_connection_requires_private_state_and_live_mcp(monkeypatch, tmp_path):
     extension = tmp_path / "extension"
     extension.mkdir()
@@ -51,6 +95,7 @@ def test_existing_connection_requires_private_state_and_live_mcp(monkeypatch, tm
                 "mcp_port": 3456,
                 "token": "secret",
                 "mcp_pid": 123,
+                "mcp_identity": "12345",
                 "proxy_host": "127.0.0.1",
                 "proxy_port": 4567,
             }
@@ -61,6 +106,7 @@ def test_existing_connection_requires_private_state_and_live_mcp(monkeypatch, tm
     monkeypatch.setattr(managed_domshell, "_state_path", lambda: state_path)
     monkeypatch.setattr(managed_domshell, "_port_ready", lambda port: port == 3456)
     monkeypatch.setattr(managed_domshell.os, "kill", lambda pid, signal: None)
+    monkeypatch.setattr(managed_domshell, "_process_identity", lambda pid: "12345")
     monkeypatch.setattr(
         managed_domshell.secure_egress_runtime,
         "running_proxy",
@@ -68,6 +114,22 @@ def test_existing_connection_requires_private_state_and_live_mcp(monkeypatch, tm
     )
 
     assert managed_domshell._existing_connection(extension) == (3456, "secret")
+
+
+def test_secure_stop_never_signals_a_reused_mcp_pid(monkeypatch, tmp_path):
+    state_path = tmp_path / "managed-domshell.json"
+    state_path.write_text(json.dumps({"mcp_pid": 123, "mcp_identity": "original"}), encoding="utf-8")
+    state_path.chmod(0o600)
+    terminated: list[int] = []
+    monkeypatch.setattr(managed_domshell, "_state_path", lambda: state_path)
+    monkeypatch.setattr(managed_domshell, "_process_identity", lambda pid: "replacement")
+    monkeypatch.setattr(managed_domshell, "_terminate_process_group", terminated.append)
+    monkeypatch.setattr(managed_domshell.secure_egress_runtime, "stop_proxy", lambda: None)
+
+    managed_domshell.stop_managed_domshell()
+
+    assert terminated == []
+    assert not state_path.exists()
 
 
 def test_managed_browser_bypasses_only_the_random_extension_control_port(monkeypatch, tmp_path):

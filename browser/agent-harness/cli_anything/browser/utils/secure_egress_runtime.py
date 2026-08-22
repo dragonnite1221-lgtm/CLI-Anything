@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -9,6 +10,11 @@ import socket
 import subprocess
 import sys
 import time
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - this Unix process-group runtime fails closed elsewhere.
+    fcntl = None
 
 
 RUNTIME_ENV = "CLI_ANYTHING_BROWSER_RUNTIME_DIR"
@@ -28,6 +34,22 @@ def runtime_dir() -> Path:
 
 def _state_path() -> Path:
     return runtime_dir() / "secure-egress-proxy.json"
+
+
+@contextmanager
+def _startup_lock():
+    """Serialize state discovery, daemon startup, and state publication across clients."""
+
+    if fcntl is None:
+        raise SecureEgressRuntimeError("secure proxy startup requires an advisory file lock")
+    lock_path = runtime_dir() / "secure-egress-proxy.lock"
+    with lock_path.open("a", encoding="utf-8") as lock_file:
+        lock_path.chmod(0o600)
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def _load_state() -> dict[str, object] | None:
@@ -68,65 +90,67 @@ def running_proxy() -> tuple[str, int] | None:
 def ensure_proxy() -> tuple[str, int]:
     """Return a running loopback proxy, starting a private daemon if needed."""
 
-    existing = running_proxy()
-    if existing:
-        return existing
+    with _startup_lock():
+        existing = running_proxy()
+        if existing:
+            return existing
 
-    state_path = _state_path()
-    try:
-        state_path.unlink()
-    except FileNotFoundError:
-        pass
-    log_path = runtime_dir() / "secure-egress-proxy.log"
-    with log_path.open("ab", buffering=0) as log_file:
-        log_path.chmod(0o600)
-        subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "cli_anything.browser.utils.secure_egress_proxy",
-                "--state-file",
-                str(state_path),
-            ],
-            stdin=subprocess.DEVNULL,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-        )
+        state_path = _state_path()
+        try:
+            state_path.unlink()
+        except FileNotFoundError:
+            pass
+        log_path = runtime_dir() / "secure-egress-proxy.log"
+        with log_path.open("ab", buffering=0) as log_file:
+            log_path.chmod(0o600)
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "cli_anything.browser.utils.secure_egress_proxy",
+                    "--state-file",
+                    str(state_path),
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
 
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline:
-        state = _load_state()
-        if state and _alive(state):
-            return str(state["host"]), int(state["port"])
-        time.sleep(0.05)
-    raise SecureEgressRuntimeError("Secure egress proxy did not become ready")
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            state = _load_state()
+            if state and _alive(state):
+                return str(state["host"]), int(state["port"])
+            time.sleep(0.05)
+        raise SecureEgressRuntimeError("Secure egress proxy did not become ready")
 
 
 def stop_proxy() -> None:
     """Stop the proxy process recorded in the private runtime state, if present."""
 
-    state = _load_state()
-    if state:
-        pid = int(state["pid"])
-        try:
-            os.kill(pid, 15)
-        except (OSError, ValueError, TypeError):
-            pass
-        else:
-            deadline = time.monotonic() + 5
-            while time.monotonic() < deadline:
-                try:
-                    os.kill(pid, 0)
-                except OSError:
-                    break
-                time.sleep(0.05)
+    with _startup_lock():
+        state = _load_state()
+        if state:
+            pid = int(state["pid"])
+            try:
+                os.kill(pid, 15)
+            except (OSError, ValueError, TypeError):
+                pass
             else:
-                try:
-                    os.kill(pid, 9)
-                except OSError:
-                    pass
-    try:
-        _state_path().unlink()
-    except FileNotFoundError:
-        pass
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    try:
+                        os.kill(pid, 0)
+                    except OSError:
+                        break
+                    time.sleep(0.05)
+                else:
+                    try:
+                        os.kill(pid, 9)
+                    except OSError:
+                        pass
+        try:
+            _state_path().unlink()
+        except FileNotFoundError:
+            pass

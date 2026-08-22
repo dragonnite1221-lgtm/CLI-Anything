@@ -32,6 +32,7 @@ from cli_anything.browser.utils.managed_domshell_state import (
     _extension_dir,
     _free_loopback_port,
     _port_ready,
+    _process_identity,
     _private_json,
     _state_path,
     _terminate_process_group,
@@ -53,7 +54,7 @@ __all__ = [
 def _existing_connection(extension: Path) -> tuple[int, str] | None:
     """Return a still-live managed session while retaining facade injection hooks."""
 
-    return existing_connection(extension, _state_path, _port_ready)
+    return existing_connection(extension, _state_path, _port_ready, _process_identity)
 
 
 def ensure_managed_domshell() -> tuple[int, str]:
@@ -69,6 +70,9 @@ def ensure_managed_domshell() -> tuple[int, str]:
         ws_port = _free_loopback_port()
     process = _start_mcp_server(token, mcp_port, ws_port)
     try:
+        mcp_identity = _process_identity(process.pid)
+        if mcp_identity is None:
+            raise ManagedDOMShellError("unable to verify managed MCP process identity")
         _configure_managed_extension(proxy_host, proxy_port, extension, token, ws_port, mcp_port)
         _write_private_json(
             _state_path(),
@@ -77,6 +81,7 @@ def ensure_managed_domshell() -> tuple[int, str]:
                 "mcp_port": mcp_port,
                 "token": token,
                 "mcp_pid": process.pid,
+                "mcp_identity": mcp_identity,
                 "proxy_host": proxy_host,
                 "proxy_port": proxy_port,
             },
@@ -133,8 +138,9 @@ def stop_managed_domshell() -> None:
     """Stop the recorded MCP process and paired private egress proxy."""
 
     state = _private_json(_state_path())
-    if state and isinstance(state.get("mcp_pid"), int):
-        _terminate_process_group(state["mcp_pid"])
+    if state and isinstance(state.get("mcp_pid"), int) and isinstance(state.get("mcp_identity"), str):
+        if _process_identity(state["mcp_pid"]) == state["mcp_identity"]:
+            _terminate_process_group(state["mcp_pid"])
     try:
         _state_path().unlink()
     except FileNotFoundError:

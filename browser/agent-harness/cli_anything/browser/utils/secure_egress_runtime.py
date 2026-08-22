@@ -11,6 +11,8 @@ import subprocess
 import sys
 import time
 
+from cli_anything.browser.utils.process_identity import process_identity as _process_identity
+
 try:
     import fcntl
 except ImportError:  # pragma: no cover - this Unix process-group runtime fails closed elsewhere.
@@ -62,7 +64,7 @@ def _load_state() -> dict[str, object] | None:
             return None
         if not isinstance(state.get("host"), str) or not isinstance(state.get("port"), int):
             return None
-        if not isinstance(state.get("pid"), int):
+        if not isinstance(state.get("pid"), int) or not isinstance(state.get("identity"), str):
             return None
         return state
     except (FileNotFoundError, OSError, ValueError, json.JSONDecodeError):
@@ -71,7 +73,10 @@ def _load_state() -> dict[str, object] | None:
 
 def _alive(state: dict[str, object]) -> bool:
     try:
-        os.kill(int(state["pid"]), 0)
+        pid = int(state["pid"])
+        if _process_identity(pid) != state["identity"]:
+            return False
+        os.kill(pid, 0)
         with socket.create_connection((str(state["host"]), int(state["port"])), timeout=0.2):
             return True
     except (OSError, ValueError, TypeError):
@@ -133,23 +138,24 @@ def stop_proxy() -> None:
         state = _load_state()
         if state:
             pid = int(state["pid"])
-            try:
-                os.kill(pid, 15)
-            except (OSError, ValueError, TypeError):
-                pass
-            else:
-                deadline = time.monotonic() + 5
-                while time.monotonic() < deadline:
-                    try:
-                        os.kill(pid, 0)
-                    except OSError:
-                        break
-                    time.sleep(0.05)
+            if _process_identity(pid) == state["identity"]:
+                try:
+                    os.kill(pid, 15)
+                except (OSError, ValueError, TypeError):
+                    pass
                 else:
-                    try:
-                        os.kill(pid, 9)
-                    except OSError:
-                        pass
+                    deadline = time.monotonic() + 5
+                    while time.monotonic() < deadline:
+                        try:
+                            os.kill(pid, 0)
+                        except OSError:
+                            break
+                        time.sleep(0.05)
+                    else:
+                        try:
+                            os.kill(pid, 9)
+                        except OSError:
+                            pass
         try:
             _state_path().unlink()
         except FileNotFoundError:

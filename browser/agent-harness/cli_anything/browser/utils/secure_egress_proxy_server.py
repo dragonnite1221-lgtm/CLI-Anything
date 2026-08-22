@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import signal
 
+from cli_anything.browser.utils.process_identity import process_identity
 from cli_anything.browser.utils.secure_egress_proxy_http import relay_http_request
 
 
@@ -111,7 +112,10 @@ async def handle_proxy_client(
 
 def _write_state(path: Path, server: asyncio.AbstractServer) -> None:
     socket_name = server.sockets[0].getsockname()
-    payload = json.dumps({"host": socket_name[0], "port": socket_name[1], "pid": os.getpid()})
+    identity = process_identity(os.getpid())
+    if identity is None:
+        raise RuntimeError("secure proxy cannot record a non-reusable process identity")
+    payload = json.dumps({"host": socket_name[0], "port": socket_name[1], "pid": os.getpid(), "identity": identity})
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")
     temporary.write_text(payload, encoding="utf-8")

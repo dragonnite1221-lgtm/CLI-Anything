@@ -9,9 +9,9 @@ import socket
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
-from urllib.parse import urlsplit
 
 from cli_anything.browser.utils import secure_egress_proxy_server as _server
+from cli_anything.browser.utils import secure_egress_proxy_parsing as _parsing
 
 
 MAX_REQUEST_HEADER_BYTES = 16 * 1024
@@ -44,13 +44,9 @@ def _normalise_ip(value: str) -> ipaddress.IPv4Address | ipaddress.IPv6Address:
     return address
 
 
-def _global_addresses(host: str, port: int) -> tuple[str, ...]:
-    """Resolve once and reject a response containing any non-global address."""
+def _validated_addresses(infos) -> tuple[str, ...]:
+    """Reject a resolver response containing an invalid or non-public address."""
 
-    try:
-        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    except (socket.gaierror, OSError, UnicodeError) as error:
-        raise DestinationRejected("Destination hostname could not be resolved") from error
     addresses: list[str] = []
     for info in infos:
         try:
@@ -67,20 +63,48 @@ def _global_addresses(host: str, port: int) -> tuple[str, ...]:
     return tuple(addresses)
 
 
-def resolve_pinned_destination(host: str, port: int) -> PinnedDestination:
-    """Validate a destination and retain every resolved numeric address."""
+def _global_addresses(host: str, port: int) -> tuple[str, ...]:
+    """Resolve once and reject a response containing any non-global address."""
 
+    try:
+        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    except (socket.gaierror, OSError, UnicodeError) as error:
+        raise DestinationRejected("Destination hostname could not be resolved") from error
+    return _validated_addresses(infos)
+
+
+def _validate_destination(host: str, port: int) -> None:
     if not isinstance(host, str) or not host or any(char.isspace() for char in host):
         raise DestinationRejected("Destination hostname is invalid")
     if not isinstance(port, int) or not 1 <= port <= 65535:
         raise DestinationRejected("Destination port is invalid")
+
+
+def resolve_pinned_destination(host: str, port: int) -> PinnedDestination:
+    """Validate a destination and retain every resolved numeric address."""
+
+    _validate_destination(host, port)
     return PinnedDestination(host=host, port=port, addresses=_global_addresses(host, port))
+
+
+async def _resolve_pinned_destination(host: str, port: int) -> PinnedDestination:
+    """Resolve through asyncio's worker pool so a slow resolver cannot stall active tunnels."""
+
+    _validate_destination(host, port)
+    try:
+        infos = await asyncio.wait_for(
+            asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM),
+            timeout=CONNECT_TIMEOUT_SECONDS,
+        )
+    except (socket.gaierror, OSError, UnicodeError, asyncio.TimeoutError) as error:
+        raise DestinationRejected("Destination hostname could not be resolved") from error
+    return PinnedDestination(host=host, port=port, addresses=_validated_addresses(infos))
 
 
 async def open_pinned_connection(host: str, port: int) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     """Connect to the validated numeric address, never a caller-controlled hostname."""
 
-    destination = resolve_pinned_destination(host, port)
+    destination = await _resolve_pinned_destination(host, port)
     for address in destination.addresses:
         try:
             return await asyncio.wait_for(
@@ -95,54 +119,19 @@ async def open_pinned_connection(host: str, port: int) -> tuple[asyncio.StreamRe
 def _parse_authority(value: str) -> tuple[str, int]:
     """Parse a CONNECT authority without accepting user-info."""
 
-    if value.startswith("["):
-        closing = value.find("]")
-        if closing < 0 or not value[closing + 1 :].startswith(":"):
-            raise DestinationRejected("CONNECT authority must include a port")
-        host, port_text = value[1:closing], value[closing + 2 :]
-    else:
-        host, separator, port_text = value.rpartition(":")
-        if not separator:
-            raise DestinationRejected("CONNECT authority must include a port")
-    if "@" in host:
-        raise DestinationRejected("CONNECT authority must not include credentials")
-    try:
-        port = int(port_text, 10)
-    except ValueError as error:
-        raise DestinationRejected("CONNECT port is invalid") from error
-    if not host or not 1 <= port <= 65535:
-        raise DestinationRejected("CONNECT authority is invalid")
-    return host, port
+    return _parsing.parse_authority(value, DestinationRejected)
 
 
 def _parse_http_target(target: str) -> tuple[str, int, str]:
     """Return host, port, and origin-form target for an HTTP proxy request."""
 
-    parsed = urlsplit(target)
-    if parsed.scheme.lower() != "http" or not parsed.hostname:
-        raise DestinationRejected("Proxy request must use an absolute http URL")
-    if parsed.username is not None or parsed.password is not None:
-        raise DestinationRejected("Proxy request must not include credentials")
-    try:
-        port = parsed.port or 80
-    except ValueError as error:
-        raise DestinationRejected("Proxy request port is invalid") from error
-    path = parsed.path or "/"
-    return parsed.hostname, port, f"{path}?{parsed.query}" if parsed.query else path
+    return _parsing.parse_http_target(target, DestinationRejected)
 
 
 def _origin_request_header(method: str, path: str, version: str, headers: Iterable[str]) -> bytes:
     """Convert an absolute-form proxy request to an origin-form request."""
 
-    forwarded = [f"{method} {path} {version}"]
-    for header in headers:
-        name, separator, _value = header.partition(":")
-        if not separator:
-            raise DestinationRejected("Proxy request header is malformed")
-        if name.lower() not in {"connection", "proxy-connection", "proxy-authorization"}:
-            forwarded.append(header)
-    forwarded.append("Connection: close")
-    return ("\r\n".join(forwarded) + "\r\n\r\n").encode("iso-8859-1")
+    return _parsing.origin_request_header(method, path, version, headers, DestinationRejected)
 
 
 _relay_both_directions = _server.relay_both_directions

@@ -72,13 +72,30 @@ def _start_mcp_server(token: str, mcp_port: int, ws_port: int) -> subprocess.Pop
     )
 
 
-def _wait_for_port(port: int) -> None:
-    deadline = time.monotonic() + 45
+def _process_owns_loopback_port(pid: int, port: int) -> bool:
+    """Prove that the freshly spawned DOMShell process, not another listener, owns a port."""
+
+    inodes: set[str] = set()
+    try:
+        for table in ("/proc/net/tcp", "/proc/net/tcp6"):
+            for line in Path(table).read_text(encoding="utf-8").splitlines()[1:]:
+                fields = line.split()
+                if len(fields) > 9 and fields[3] == "0A" and int(fields[1].rsplit(":", 1)[1], 16) == port:
+                    inodes.add(fields[9])
+        if not inodes:
+            return False
+        return any(os.readlink(entry) in {f"socket:[{inode}]" for inode in inodes} for entry in (Path(f"/proc/{pid}/fd")).iterdir())
+    except (OSError, ValueError):
+        return False
+
+
+def _wait_for_ports(pid: int, *ports: int, timeout_seconds: int = 45) -> None:
+    deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
-        if _port_ready(port):
+        if all(_port_ready(port) and _process_owns_loopback_port(pid, port) for port in ports):
             return
         time.sleep(0.1)
-    raise ManagedDOMShellError("Managed DOMShell MCP server did not become ready")
+    raise ManagedDOMShellError("Managed DOMShell did not bind its reserved control ports")
 
 
 def _cdp_url(proxy_host: str, proxy_port: int, extension: Path, ws_port: int) -> str:

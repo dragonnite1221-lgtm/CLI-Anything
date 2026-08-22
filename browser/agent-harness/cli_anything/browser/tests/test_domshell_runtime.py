@@ -59,3 +59,21 @@ def test_status_rejects_group_readable_runtime_directory(monkeypatch, tmp_path):
     monkeypatch.setenv(runtime.RUNTIME_ENV, str(root))
 
     assert runtime.status()["installed"] is False
+
+
+def test_node_requires_the_runtime_minimum_version(monkeypatch):
+    class Completed:
+        stdout = "v16.20.2\n"
+
+    monkeypatch.setattr(runtime.shutil, "which", lambda binary: "/usr/bin/node")
+    monkeypatch.setattr(runtime.subprocess, "run", lambda *_args, **_kwargs: Completed())
+
+    with pytest.raises(runtime.DOMShellRuntimeError, match="18 or later"):
+        runtime._node()
+
+
+def test_install_checks_node_before_invoking_npm(monkeypatch):
+    monkeypatch.setattr(runtime, "_node", lambda: (_ for _ in ()).throw(runtime.DOMShellRuntimeError("old Node")))
+
+    with pytest.raises(runtime.DOMShellRuntimeError, match="old Node"):
+        runtime.install()

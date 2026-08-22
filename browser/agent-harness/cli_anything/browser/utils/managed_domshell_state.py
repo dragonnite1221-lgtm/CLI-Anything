@@ -11,18 +11,13 @@ import stat
 
 from cli_anything.browser.utils import secure_egress_runtime
 from cli_anything.browser.utils.managed_domshell_contract import DOMSHELL_EXTENSION_ENV, ManagedDOMShellError
+from cli_anything.browser.utils.process_identity import process_identity
 
 
 def _process_identity(pid: int) -> str | None:
-    """Return Linux's non-reusable process start identifier, when available."""
+    """Retain the managed-runtime injection hook around the shared identity check."""
 
-    try:
-        stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
-        closing = stat.rfind(")")
-        fields = stat[closing + 2 :].split()
-        return fields[19] if closing >= 0 and len(fields) > 19 else None
-    except OSError:
-        return None
+    return process_identity(pid)
 
 
 def _terminate_process_group(pid: int) -> None:
@@ -126,8 +121,7 @@ def existing_connection(extension: Path, state_path, port_ready, process_identit
     if not state or state.get("extension") != str(extension):
         return None
     port, token, pid, identity = state.get("mcp_port"), state.get("token"), state.get("mcp_pid"), state.get("mcp_identity")
-    proxy_host, proxy_port = state.get("proxy_host"), state.get("proxy_port")
-    if not all((isinstance(port, int), isinstance(token, str), isinstance(pid, int), isinstance(identity, str), isinstance(proxy_host, str), isinstance(proxy_port, int), port_ready(port))):
+    if not all((isinstance(port, int), isinstance(token, str), isinstance(pid, int), isinstance(identity, str), port_ready(port))):
         return None
     try:
         os.kill(pid, 0)
@@ -135,6 +129,10 @@ def existing_connection(extension: Path, state_path, port_ready, process_identit
         return None
     if process_identity(pid) != identity:
         return None
-    if secure_egress_runtime.running_proxy() != (proxy_host, proxy_port):
-        return None
+    if "proxy_host" in state or "proxy_port" in state:
+        proxy_host, proxy_port = state.get("proxy_host"), state.get("proxy_port")
+        if not isinstance(proxy_host, str) or not isinstance(proxy_port, int):
+            return None
+        if secure_egress_runtime.running_proxy() != (proxy_host, proxy_port):
+            return None
     return port, token

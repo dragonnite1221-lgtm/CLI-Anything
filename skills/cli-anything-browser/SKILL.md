@@ -35,6 +35,15 @@ A command-line interface for browser automation using [DOMShell](https://github.
    This verifies the bundled npm lockfile with `npm ci --ignore-scripts`.
    Normal commands never download or execute packages through `npx`.
 
+4. **Linux CDP isolation dependencies**:
+   ```bash
+   sudo apt-get install rootlesskit slirp4netns uidmap
+   ```
+   `secure start` runs Chrome, DOMShell, and egress in a rootless user network
+   namespace. Only the authenticated MCP bridge returns to host loopback; the
+   Chrome DevTools listener is not host-reachable. The command fails closed
+   when these dependencies or user namespaces are unavailable.
+
 4. **Python 3.10+**
 
 ### Install CLI

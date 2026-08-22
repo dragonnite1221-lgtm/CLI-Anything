@@ -48,6 +48,7 @@ not group/world-writable, then configure it before first use:
 export CLI_ANYTHING_DOMSHELL_EXTENSION_DIR="$HOME/.local/share/cli-anything/domshell-extension"
 npm install -g agent-browser@0.34.0
 agent-browser install
+sudo apt-get install rootlesskit slirp4netns uidmap  # Linux CDP isolation
 cli-anything-browser secure install
 cli-anything-browser secure start
 ```
@@ -56,6 +57,11 @@ cli-anything-browser secure start
 `package-lock.json`, which pins `@apireno/domshell@2.0.10` and every resolved
 dependency by integrity hash. Runtime commands use only that owner-private,
 verified local installation; they never invoke `npx` or download code.
+On Linux, `secure start` runs Chrome, DOMShell, and the DNS-pinning proxy in a
+rootless user network namespace. Only the authenticated MCP bridge is published
+back to host loopback; Chrome DevTools itself is never host-reachable. This
+requires `rootlesskit`, `slirp4netns`, and `uidmap`; the secure runtime fails
+closed if they are unavailable.
 
 The managed runtime also
 creates short-lived private credentials. It resolves each ordinary browser

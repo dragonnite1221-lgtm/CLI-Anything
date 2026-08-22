@@ -6,6 +6,7 @@ from importlib import resources
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -15,6 +16,7 @@ PACKAGE_NAME = "@apireno/domshell"
 PACKAGE_VERSION = "2.0.10"
 RUNTIME_MARKER = ".cli-anything-domshell-runtime"
 RUNTIME_MARKER_CONTENT = b"cli-anything-domshell-runtime-v1\n"
+MINIMUM_NODE_MAJOR = 18
 
 
 class DOMShellRuntimeError(RuntimeError):
@@ -52,6 +54,13 @@ def _node() -> str:
     executable = shutil.which("node")
     if not executable:
         raise DOMShellRuntimeError("Node.js 18 or later is required for the locally installed DOMShell runtime")
+    try:
+        version = subprocess.run([executable, "--version"], capture_output=True, text=True, check=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        raise DOMShellRuntimeError("Could not determine the installed Node.js version") from error
+    matched = re.fullmatch(r"v?(\d+)\.\d+\.\d+", version)
+    if not matched or int(matched.group(1)) < MINIMUM_NODE_MAJOR:
+        raise DOMShellRuntimeError(f"Node.js {MINIMUM_NODE_MAJOR} or later is required for the locally installed DOMShell runtime")
     return executable
 
 
@@ -127,6 +136,7 @@ def command(binary: str, *arguments: str) -> list[str]:
 def install() -> Path:
     """Install exactly the bundled lockfile with npm integrity checks and no scripts."""
 
+    _node()
     root = _prepare_install_root()
     _write_private_file(root / "package.json", _bundled_file("package.json"))
     _write_private_file(root / "package-lock.json", _bundled_file("package-lock.json"))

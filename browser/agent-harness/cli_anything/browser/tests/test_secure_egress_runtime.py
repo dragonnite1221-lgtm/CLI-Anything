@@ -28,16 +28,16 @@ def _acquire_startup_lock(runtime_path: str, acquired) -> None:
 def test_private_runtime_state_is_loaded(monkeypatch, tmp_path):
     monkeypatch.setenv(runtime.RUNTIME_ENV, str(tmp_path))
     state_path = tmp_path / "secure-egress-proxy.json"
-    state_path.write_text(json.dumps({"host": "127.0.0.1", "port": 4567, "pid": 123}), encoding="utf-8")
+    state_path.write_text(json.dumps({"host": "127.0.0.1", "port": 4567, "pid": 123, "identity": "12345"}), encoding="utf-8")
     state_path.chmod(0o600)
 
-    assert runtime._load_state() == {"host": "127.0.0.1", "port": 4567, "pid": 123}
+    assert runtime._load_state() == {"host": "127.0.0.1", "port": 4567, "pid": 123, "identity": "12345"}
 
 
 def test_world_readable_runtime_state_is_rejected(monkeypatch, tmp_path):
     monkeypatch.setenv(runtime.RUNTIME_ENV, str(tmp_path))
     state_path = tmp_path / "secure-egress-proxy.json"
-    state_path.write_text(json.dumps({"host": "127.0.0.1", "port": 4567, "pid": 123}), encoding="utf-8")
+    state_path.write_text(json.dumps({"host": "127.0.0.1", "port": 4567, "pid": 123, "identity": "12345"}), encoding="utf-8")
     state_path.chmod(0o644)
 
     assert runtime._load_state() is None
@@ -46,11 +46,26 @@ def test_world_readable_runtime_state_is_rejected(monkeypatch, tmp_path):
 def test_running_proxy_requires_both_live_pid_and_loopback_listener(monkeypatch, tmp_path):
     monkeypatch.setenv(runtime.RUNTIME_ENV, str(tmp_path))
     state_path = tmp_path / "secure-egress-proxy.json"
-    state_path.write_text(json.dumps({"host": "127.0.0.1", "port": 4567, "pid": 123}), encoding="utf-8")
+    state_path.write_text(json.dumps({"host": "127.0.0.1", "port": 4567, "pid": 123, "identity": "12345"}), encoding="utf-8")
     state_path.chmod(0o600)
     monkeypatch.setattr(runtime, "_alive", lambda state: state["pid"] == 123)
 
     assert runtime.running_proxy() == ("127.0.0.1", 4567)
+
+
+def test_stop_proxy_never_signals_a_reused_pid(monkeypatch, tmp_path):
+    monkeypatch.setenv(runtime.RUNTIME_ENV, str(tmp_path))
+    state_path = tmp_path / "secure-egress-proxy.json"
+    state_path.write_text(json.dumps({"host": "127.0.0.1", "port": 4567, "pid": 123, "identity": "original"}), encoding="utf-8")
+    state_path.chmod(0o600)
+    signals: list[tuple[int, int]] = []
+    monkeypatch.setattr(runtime, "_process_identity", lambda pid: "replacement")
+    monkeypatch.setattr(runtime.os, "kill", lambda pid, signal: signals.append((pid, signal)))
+
+    runtime.stop_proxy()
+
+    assert signals == []
+    assert not state_path.exists()
 
 
 def test_existing_proxy_is_checked_under_the_startup_lock(monkeypatch):

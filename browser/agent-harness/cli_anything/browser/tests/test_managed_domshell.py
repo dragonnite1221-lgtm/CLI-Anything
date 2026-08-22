@@ -8,7 +8,9 @@ from types import SimpleNamespace
 import pytest
 
 from cli_anything.browser.utils import managed_domshell
+from cli_anything.browser.utils import managed_domshell_browser
 from cli_anything.browser.utils import managed_domshell_extension
+from cli_anything.browser.utils import managed_domshell_state
 
 
 def test_extension_must_be_explicit(monkeypatch):
@@ -96,8 +98,6 @@ def test_existing_connection_requires_private_state_and_live_mcp(monkeypatch, tm
                 "token": "secret",
                 "mcp_pid": 123,
                 "mcp_identity": "12345",
-                "proxy_host": "127.0.0.1",
-                "proxy_port": 4567,
             }
         ),
         encoding="utf-8",
@@ -105,13 +105,8 @@ def test_existing_connection_requires_private_state_and_live_mcp(monkeypatch, tm
     state_path.chmod(0o600)
     monkeypatch.setattr(managed_domshell, "_state_path", lambda: state_path)
     monkeypatch.setattr(managed_domshell, "_port_ready", lambda port: port == 3456)
-    monkeypatch.setattr(managed_domshell.os, "kill", lambda pid, signal: None)
+    monkeypatch.setattr(managed_domshell_state.os, "kill", lambda pid, signal: None)
     monkeypatch.setattr(managed_domshell, "_process_identity", lambda pid: "12345")
-    monkeypatch.setattr(
-        managed_domshell.secure_egress_runtime,
-        "running_proxy",
-        lambda: ("127.0.0.1", 4567),
-    )
 
     assert managed_domshell._existing_connection(extension) == (3456, "secret")
 
@@ -124,7 +119,6 @@ def test_secure_stop_never_signals_a_reused_mcp_pid(monkeypatch, tmp_path):
     monkeypatch.setattr(managed_domshell, "_state_path", lambda: state_path)
     monkeypatch.setattr(managed_domshell, "_process_identity", lambda pid: "replacement")
     monkeypatch.setattr(managed_domshell, "_terminate_process_group", terminated.append)
-    monkeypatch.setattr(managed_domshell.secure_egress_runtime, "stop_proxy", lambda: None)
 
     managed_domshell.stop_managed_domshell()
 
@@ -132,55 +126,22 @@ def test_secure_stop_never_signals_a_reused_mcp_pid(monkeypatch, tmp_path):
     assert not state_path.exists()
 
 
-def test_managed_browser_bypasses_only_the_random_extension_control_port(monkeypatch, tmp_path):
-    captured: dict[str, object] = {}
-    executable = tmp_path / "agent-browser"
-    executable.write_text("", encoding="utf-8")
+def test_managed_start_closes_stale_components_before_relaunch(monkeypatch, tmp_path):
+    calls: list[str] = []
+    monkeypatch.setattr(managed_domshell, "_extension_dir", lambda: tmp_path)
+    monkeypatch.setattr(managed_domshell, "_existing_connection", lambda extension: None)
+    monkeypatch.setattr(managed_domshell, "_stop_managed_domshell", lambda: calls.append("stop"))
+    monkeypatch.setattr(managed_domshell, "start_isolated_runtime", lambda *_args: (_ for _ in ()).throw(RuntimeError("stop")))
 
-    class Completed:
-        returncode = 0
-        stdout = '{"success": true, "data": {}}'
+    with pytest.raises(RuntimeError, match="stop"):
+        managed_domshell.ensure_managed_domshell()
 
-    def fake_run(command, **_kwargs):
-        captured["command"] = command
-        return Completed()
-
-    monkeypatch.setattr(managed_domshell.shutil, "which", lambda _name: str(executable))
-    monkeypatch.setattr(managed_domshell.subprocess, "run", fake_run)
-    monkeypatch.setattr(managed_domshell.secure_egress_runtime, "runtime_dir", lambda: tmp_path)
-
-    managed_domshell._agent_browser("127.0.0.1", 45123, tmp_path, 49876, ["open", "about:blank"])
-
-    command = captured["command"]
-    assert (
-        "--headless=new,--remote-allow-origins=http://localhost,"
-        "--disable-quic,--force-webrtc-ip-handling-policy=disable_non_proxied_udp"
-    ) in command
-    assert "<-loopback>,127.0.0.1:49876" in command
+    assert calls == ["stop"]
 
 
-def test_mcp_server_requests_granular_tools(monkeypatch, tmp_path):
-    captured: dict[str, object] = {}
+def test_wait_for_ports_rejects_an_unrelated_listener(monkeypatch):
+    monkeypatch.setattr(managed_domshell_browser, "_port_ready", lambda port: True)
+    monkeypatch.setattr(managed_domshell_browser, "_process_owns_loopback_port", lambda pid, port: False)
 
-    class Process:
-        pid = 123
-
-    def fake_popen(command, **kwargs):
-        captured["command"] = command
-        captured["kwargs"] = kwargs
-        return Process()
-
-    monkeypatch.setattr(managed_domshell.secure_egress_runtime, "runtime_dir", lambda: tmp_path)
-    monkeypatch.setattr(managed_domshell.subprocess, "Popen", fake_popen)
-    monkeypatch.setattr(
-        managed_domshell.domshell_runtime,
-        "command",
-        lambda binary: ["node", f"/verified/{binary}.js"],
-    )
-
-    managed_domshell._start_mcp_server("test-token", 3456, 4567)
-
-    assert captured["command"][:2] == ["node", "/verified/domshell.js"]
-    assert captured["command"][-2:] == ["--granular", "--allow-write"]
-    assert captured["kwargs"]["cwd"] == tmp_path
-    assert captured["kwargs"]["stdout"] is managed_domshell.subprocess.DEVNULL
+    with pytest.raises(managed_domshell.ManagedDOMShellError, match="control ports"):
+        managed_domshell_browser._wait_for_ports(123, 3456, 4567, timeout_seconds=0)

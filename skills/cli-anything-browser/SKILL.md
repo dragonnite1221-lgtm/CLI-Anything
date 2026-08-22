@@ -11,17 +11,40 @@ A command-line interface for browser automation using [DOMShell](https://github.
 
 ### Prerequisites
 
-1. **Node.js and npx** (for DOMShell MCP server):
+1. **Node.js 18+ and npm** (for one-time DOMShell runtime setup):
    ```bash
    # Install Node.js from https://nodejs.org/
-   npx --version
+   node --version
+   ```
+   The managed Chrome launcher is also required:
+   ```bash
+   npm install -g agent-browser@0.34.0
+   agent-browser install
    ```
 
-2. **Chrome/Chromium** with [DOMShell extension](https://chromewebstore.google.com/detail/domshell-browser-filesy/okcliheamhmijccjknkkplploacoidnp):
-   - Install extension in Chrome
-   - Ensure Chrome is running before using CLI
+2. **Trusted local DOMShell extension build**:
+   - Point `CLI_ANYTHING_DOMSHELL_EXTENSION_DIR` at a user-owned, non-writable
+     build directory containing its `manifest.json`.
+   - The CLI starts its own isolated Chrome and DNS-pinned egress proxy; do not
+   attach it to an existing Chrome or provide a legacy DOMSHELL_TOKEN.
 
-3. **Python 3.10+**
+3. **Verified local DOMShell server runtime**:
+   ```bash
+   cli-anything-browser secure install
+   ```
+   This verifies the bundled npm lockfile with `npm ci --ignore-scripts`.
+   Normal commands never download or execute packages through `npx`.
+
+4. **Linux CDP isolation dependencies**:
+   ```bash
+   sudo apt-get install rootlesskit slirp4netns uidmap
+   ```
+   `secure start` runs Chrome, DOMShell, and egress in a rootless user network
+   namespace. Only the authenticated MCP bridge returns to host loopback; the
+   Chrome DevTools listener is not host-reachable. The command fails closed
+   when these dependencies or user namespaces are unavailable.
+
+4. **Python 3.10+**
 
 ### Install CLI
 
@@ -58,6 +81,12 @@ pip install -e .
 - `session status` — Show session state
 - `session daemon-start` — Start persistent daemon mode
 - `session daemon-stop` — Stop daemon mode
+
+### `secure` — Managed Egress Runtime
+
+- `secure status` — Show non-secret runtime state
+- `secure start` — Launch the isolated managed browser
+- `secure stop` — Stop browser, MCP server, and proxy
 
 ## Usage Examples
 
@@ -155,8 +184,7 @@ Returns:
 
 The CLI provides clear error messages for common issues:
 
-- **npx not found**: Install Node.js from https://nodejs.org/
-- **DOMShell not found**: Run `npx @apireno/domshell --version`
+- **DOMShell runtime is not installed**: Run `cli-anything-browser secure install`
 - **MCP call failed**: Install DOMShell Chrome extension
 
 Check `is_available()` return value before running commands.

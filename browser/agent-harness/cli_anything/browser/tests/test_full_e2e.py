@@ -14,7 +14,7 @@ from cli_anything.browser.utils.domshell_backend import is_available
 from cli_anything.browser.browser_cli import cli
 
 # Control whether to run DOMShell E2E tests via an environment variable.
-# This avoids invoking `npx` (inside is_available) during test collection
+# This avoids starting the managed DOMShell runtime during test collection.
 # in environments that have not explicitly opted in.
 DOMSHELL_E2E_ENABLED = os.environ.get("DOMSHELL_E2E", "").lower() in {"1", "true", "yes"}
 

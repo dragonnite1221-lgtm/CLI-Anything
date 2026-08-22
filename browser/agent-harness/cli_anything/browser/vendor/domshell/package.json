@@ -1,0 +1,9 @@
+{
+  "name": "cli-anything-domshell-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Locked runtime dependency for cli-anything-browser",
+  "dependencies": {
+    "@apireno/domshell": "2.0.10"
+  }
+}

@@ -17,9 +17,12 @@ This harness provides browser automation using [DOMShell](https://github.com/api
                     │                                     │            │
                     ▼                                     ▼            ▼
             ┌───────────────┐                 ┌────────────┐    ┌──────────┐
-            │ Spawn npx     │                 │  DOMShell  │    │  Chrome  │
-            │ subprocess    │◀──stdio─────────▶│  MCP Server│◀───│ + Ext    │
+            │ Spawn pinned  │                 │  DOMShell  │    │ Managed  │
+            │ npx bridge    │◀──stdio─────────▶│  MCP Server│◀───│ Chrome + │
             └───────────────┘                 └────────────┘    └──────────┘
+                                                                     │
+                                                              DNS-pinning
+                                                              egress proxy
 
 State Management:
 ┌─────────────────────────────────────────────────────────────────┐
@@ -37,13 +40,35 @@ DOMShell is an npm package that exposes Chrome's Accessibility Tree via MCP:
 
 ### Installation
 
-```bash
-# Verify DOMShell is available
-npx @apireno/domshell --version
+The CLI uses a private managed browser instead of an arbitrary existing Chrome
+process. Build the trusted extension locally, keep its directory user-owned and
+not group/world-writable, then configure it before first use:
 
-# Install Chrome extension
-# https://chromewebstore.google.com/detail/domshell
+```bash
+export CLI_ANYTHING_DOMSHELL_EXTENSION_DIR="$HOME/.local/share/cli-anything/domshell-extension"
+npm install -g agent-browser@0.34.0
+agent-browser install
+sudo apt-get install rootlesskit slirp4netns uidmap  # Linux CDP isolation
+cli-anything-browser secure install
+cli-anything-browser secure start
 ```
+
+`secure install` runs `npm ci --ignore-scripts` against the bundled
+`package-lock.json`, which pins `@apireno/domshell@2.0.10` and every resolved
+dependency by integrity hash. Runtime commands use only that owner-private,
+verified local installation; they never invoke `npx` or download code.
+On Linux, `secure start` runs Chrome, DOMShell, and the DNS-pinning proxy in a
+rootless user network namespace. Only the authenticated MCP bridge is published
+back to host loopback; Chrome DevTools itself is never host-reachable. This
+requires `rootlesskit`, `slirp4netns`, and `uidmap`; the secure runtime fails
+closed if they are unavailable.
+
+The managed runtime also
+creates short-lived private credentials. It resolves each ordinary browser
+destination once and opens the TCP connection to the selected numeric global
+address, so DNS rebinding cannot change a checked public hostname into an
+intranet destination. The extension's token-authenticated local control socket
+is the only random-port loopback exception.
 
 ### MCP Tools
 
@@ -70,7 +95,8 @@ This is the first CLI-Anything harness to use an MCP server as a backend.
 
 **Backend wrapper** (`domshell_backend.py`):
 - Uses `mcp` Python SDK with `stdio` transport
-- Spawns `npx @apireno/domshell` subprocess per command
+- Spawns a pinned `@apireno/domshell@2.0.10` bridge per command
+- Starts DOMShell only inside the isolated managed Chrome profile
 - Async MCP interface wrapped in sync functions via `asyncio.run()`
 
 **Session management**:
@@ -209,8 +235,7 @@ if not available:
 ```
 
 **Error messages:**
-- "npx not found" → Install Node.js
-- "DOMShell not found" → Run `npx @apireno/domshell --version`
+- "DOMShell runtime is not installed" → Run `cli-anything-browser secure install`
 - "DOMShell MCP call failed" → Install Chrome extension
 
 ### MCP Tool Failures
@@ -255,8 +280,8 @@ except Exception as e:
 
 ### Per-Command Overhead
 
-Each command spawns `npx @apireno/domshell`:
-- **Cold start**: 1-3 seconds (first run, package download)
+Each command starts the verified local DOMShell bridge:
+- **Cold start**: ~1-3 seconds (local process startup)
 - **Warm start**: ~100-500ms (subsequent runs)
 
 **Mitigation**: Use daemon mode for interactive sessions.

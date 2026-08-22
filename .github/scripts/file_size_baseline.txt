@@ -35,7 +35,6 @@
 1263 blender/agent-harness/cli_anything/blender/tests/test_full_e2e.py
 577 blender/agent-harness/cli_anything/blender/utils/bpy_gen.py
 468 blender/agent-harness/cli_anything/blender/utils/preview_bundle.py
-434 browser/agent-harness/cli_anything/browser/browser_cli.py
 389 browser/agent-harness/cli_anything/browser/tests/test_core.py
 281 browser/agent-harness/cli_anything/browser/tests/test_security.py
 430 browser/agent-harness/cli_anything/browser/utils/domshell_backend.py

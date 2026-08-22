@@ -35,6 +35,7 @@ setup(
         "click>=8.1,<9.0",
         "prompt-toolkit>=3.0,<4.0",
         "mcp>=0.1.0,<1.0.0",
+        "websocket-client>=1.8,<2.0",
     ],
 
     extras_require={
@@ -53,7 +54,7 @@ setup(
     },
 
     package_data={
-        "cli_anything.browser": ["skills/*.md"],
+        "cli_anything.browser": ["skills/*.md", "vendor/domshell/package.json", "vendor/domshell/package-lock.json"],
     },
 
     include_package_data=True,

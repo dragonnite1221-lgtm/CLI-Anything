@@ -43,6 +43,8 @@ def _write_private_json(path: Path, payload: dict[str, object]) -> None:
 
 
 def _isolation_tools() -> tuple[str, str, str]:
+    if not sys.platform.startswith("linux"):
+        raise ManagedDOMShellError("managed secure Chrome is supported only on Linux because it requires a user network namespace")
     rootlesskit, slirp, newuidmap = shutil.which("rootlesskit"), shutil.which("slirp4netns"), shutil.which("newuidmap")
     if not rootlesskit or not slirp or not newuidmap:
         raise ManagedDOMShellError("managed secure Chrome requires rootlesskit, slirp4netns, and uidmap for CDP isolation")

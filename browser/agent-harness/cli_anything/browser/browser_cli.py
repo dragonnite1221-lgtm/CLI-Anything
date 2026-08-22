@@ -114,7 +114,7 @@ def cli(ctx, use_json, use_daemon):
         if not available:
             _report_dependency_error(message)
     _session = get_session()
-    if use_daemon:
+    if use_daemon and ctx.invoked_subcommand != "secure":
         _enable_daemon_mode()
     if ctx.invoked_subcommand is None:
         ctx.invoke(repl)

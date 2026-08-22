@@ -17,6 +17,13 @@ def test_isolation_requires_all_host_tools(monkeypatch):
         runtime._isolation_tools()
 
 
+def test_isolation_fails_before_startup_on_non_linux_hosts(monkeypatch):
+    monkeypatch.setattr(runtime.sys, "platform", "darwin")
+
+    with pytest.raises(runtime.ManagedDOMShellError, match="only on Linux"):
+        runtime._isolation_tools()
+
+
 def test_launcher_publishes_only_the_authenticated_mcp_port(monkeypatch, tmp_path):
     class Process:
         def poll(self):

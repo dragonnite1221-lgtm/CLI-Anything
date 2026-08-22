@@ -36,6 +36,8 @@ def test_command_uses_only_verified_local_node_script(monkeypatch, tmp_path):
     (root / "package-lock.json").chmod(0o600)
     (root / runtime.RUNTIME_MARKER).write_bytes(runtime.RUNTIME_MARKER_CONTENT)
     (root / runtime.RUNTIME_MARKER).chmod(0o600)
+    (root / runtime.INSTALL_MARKER).write_bytes(runtime.INSTALL_MARKER_CONTENT)
+    (root / runtime.INSTALL_MARKER).chmod(0o600)
     (package / "package.json").write_text(
         json.dumps({"name": runtime.PACKAGE_NAME, "version": runtime.PACKAGE_VERSION}),
         encoding="utf-8",
@@ -50,6 +52,17 @@ def test_command_uses_only_verified_local_node_script(monkeypatch, tmp_path):
         str(package / "bin" / "domshell.js"),
         "--granular",
     ]
+
+
+def test_command_rejects_an_incomplete_runtime_install(monkeypatch, tmp_path):
+    root = tmp_path / "runtime"
+    root.mkdir(mode=0o700)
+    (root / runtime.RUNTIME_MARKER).write_bytes(runtime.RUNTIME_MARKER_CONTENT)
+    (root / runtime.RUNTIME_MARKER).chmod(0o600)
+    monkeypatch.setenv(runtime.RUNTIME_ENV, str(root))
+
+    with pytest.raises(runtime.DOMShellRuntimeError, match="not installed|incomplete"):
+        runtime.command("domshell")
 
 
 def test_status_rejects_group_readable_runtime_directory(monkeypatch, tmp_path):

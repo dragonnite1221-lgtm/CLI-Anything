@@ -16,6 +16,8 @@ PACKAGE_NAME = "@apireno/domshell"
 PACKAGE_VERSION = "2.0.10"
 RUNTIME_MARKER = ".cli-anything-domshell-runtime"
 RUNTIME_MARKER_CONTENT = b"cli-anything-domshell-runtime-v1\n"
+INSTALL_MARKER = ".cli-anything-domshell-installed"
+INSTALL_MARKER_CONTENT = b"cli-anything-domshell-installed-v1\n"
 MINIMUM_NODE_MAJOR = 18
 
 
@@ -93,7 +95,7 @@ def _prepare_install_root() -> Path:
     return root
 
 
-def _installed_package() -> Path:
+def _installed_package(*, require_complete_install: bool = True) -> Path:
     root = runtime_dir()
     if not root.exists():
         raise DOMShellRuntimeError("DOMShell runtime is not installed; run `cli-anything-browser secure install`")
@@ -103,6 +105,11 @@ def _installed_package() -> Path:
     _assert_private(marker)
     if marker.read_bytes() != RUNTIME_MARKER_CONTENT:
         raise DOMShellRuntimeError("DOMShell runtime marker is invalid; reinstall it")
+    completion_marker = root / INSTALL_MARKER
+    if require_complete_install:
+        _assert_private(completion_marker)
+        if completion_marker.read_bytes() != INSTALL_MARKER_CONTENT:
+            raise DOMShellRuntimeError("DOMShell runtime installation is incomplete; reinstall it")
     lock_path = root / "package-lock.json"
     _assert_private(lock_path)
     if lock_path.read_bytes() != _bundled_file("package-lock.json"):
@@ -138,6 +145,7 @@ def install() -> Path:
 
     _node()
     root = _prepare_install_root()
+    (root / INSTALL_MARKER).unlink(missing_ok=True)
     _write_private_file(root / "package.json", _bundled_file("package.json"))
     _write_private_file(root / "package-lock.json", _bundled_file("package-lock.json"))
     npm = shutil.which("npm")
@@ -154,6 +162,8 @@ def install() -> Path:
         )
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
         raise DOMShellRuntimeError("Locked DOMShell runtime installation failed") from error
+    _installed_package(require_complete_install=False)
+    _write_private_file(root / INSTALL_MARKER, INSTALL_MARKER_CONTENT)
     _installed_package()
     return root
 

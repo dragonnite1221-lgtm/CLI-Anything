@@ -21,6 +21,20 @@ def test_secure_status_does_not_start_browser(monkeypatch):
     assert result.output.strip() == '{\n  "managed": false\n}'
 
 
+def test_daemon_secure_status_does_not_start_browser(monkeypatch):
+    monkeypatch.setattr(browser_cli.backend, "secure_runtime_status", lambda: {"managed": False})
+    monkeypatch.setattr(
+        browser_cli.backend,
+        "start_daemon",
+        lambda: (_ for _ in ()).throw(AssertionError("secure status must not start the daemon")),
+    )
+
+    result = CliRunner().invoke(browser_cli.cli, ["--json", "--daemon", "secure", "status"])
+
+    assert result.exit_code == 0
+    assert result.output.strip() == '{\n  "managed": false\n}'
+
+
 def test_secure_stop_stops_daemon_and_managed_runtime(monkeypatch):
     stopped: list[str] = []
     monkeypatch.setattr(browser_cli.backend, "stop_daemon", lambda: stopped.append("daemon"))

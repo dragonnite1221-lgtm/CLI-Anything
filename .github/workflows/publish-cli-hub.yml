@@ -14,9 +14,11 @@ jobs:
     permissions:
       id-token: write  # required for trusted publishing
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.0.0
         with:
           python-version: "3.12"
 
@@ -43,6 +45,6 @@ jobs:
 
       - name: Publish to PyPI
         if: steps.check.outputs.skip == 'false'
-        uses: pypa/gh-action-pypi-publish@release/v1
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
         with:
           packages-dir: cli-hub/dist/

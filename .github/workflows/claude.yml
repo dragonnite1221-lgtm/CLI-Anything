@@ -35,13 +35,14 @@ jobs:
       issues: write
       id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
           fetch-depth: 1
+          persist-credentials: false
       - name: Claude review unavailable
         if: env.CLAUDE_ACCESS_TOKEN == ''
         run: echo "::notice::Skipping Claude review because CLAUDE_ACCESS_TOKEN is not configured."
-      - uses: anthropics/claude-code-action@beta
+      - uses: anthropics/claude-code-action@28f83620103c48a57093dcc2837eec89e036bb9f # v0.0.63
         if: env.CLAUDE_ACCESS_TOKEN != ''
         with:
           claude_code_oauth_token: ${{ env.CLAUDE_ACCESS_TOKEN }}

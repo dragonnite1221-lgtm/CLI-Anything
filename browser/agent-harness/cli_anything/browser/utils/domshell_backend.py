@@ -1,49 +1,46 @@
-"""DOMShell MCP client wrapper — communicates with DOMShell MCP server via stdio.
+"""DOMShell MCP client wrapper with DNS-pinned managed browser egress.
 
-DOMShell is a browser automation tool that maps Chrome's Accessibility Tree
-to a virtual filesystem. This module provides a Python interface to DOMShell's
-MCP server.
-
-Installation:
-1. Install DOMShell Chrome extension from Chrome Web Store
-2. Ensure npx is available: npm install -g npx
-
-DOMShell GitHub: https://github.com/apireno/DOMShell
-Chrome Web Store: https://chromewebstore.google.com/detail/domshell-%E2%80%94-browser-filesy/okcliheamhmijccjknkkplploacoidnp
+The browser is never attached to an arbitrary user Chrome process. The managed
+runtime starts a private Chrome profile, pins ordinary browser connections
+through a loopback egress proxy, and only then connects the pinned DOMShell
+MCP server. This removes the DNS-rebinding gap between URL preflight and
+Chrome's later DNS lookup.
 """
 
 import asyncio
 import os
-import subprocess
 import shutil
 from typing import Any, Optional
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+from cli_anything.browser.utils import managed_domshell
 
-# DOMShell MCP server command
-# The harness connects to a running DOMShell server via domshell-proxy (stdio bridge).
-# Configure via environment variables:
-#   DOMSHELL_TOKEN  — auth token (required, must match the running server)
-#   DOMSHELL_PORT   — MCP HTTP port of the running server (default: 3001)
 DEFAULT_SERVER_CMD = "npx"
 
 
 def _build_server_args() -> list[str]:
-    """Build server args at call time so env var changes are honored."""
-    token = os.environ.get("DOMSHELL_TOKEN", "")
-    if not token:
-        raise RuntimeError(
-            "DOMSHELL_TOKEN environment variable is required.\n"
-            "Set it to the auth token of your running DOMShell server.\n"
-            "Example: export DOMSHELL_TOKEN=<token from DOMShell startup>"
-        )
-    port = os.environ.get("DOMSHELL_PORT", "3001")
+    """Start or reuse the managed runtime and build the private MCP bridge."""
+    port, token = managed_domshell.ensure_managed_domshell()
     return [
-        "-p", "@apireno/domshell",
+        "--yes", "--package", managed_domshell.DOMSHELL_NPM_SPEC,
         "domshell-proxy",
-        "--port", port,
+        "--port", str(port),
         "--token", token,
     ]
+
+
+def _server_parameters() -> StdioServerParameters:
+    """Create a minimal subprocess environment for the pinned MCP bridge."""
+
+    return StdioServerParameters(
+        command=DEFAULT_SERVER_CMD,
+        args=_build_server_args(),
+        env={
+            "PATH": os.environ.get("PATH", ""),
+            "HOME": os.path.expanduser("~"),
+            "npm_config_ignore_scripts": "true",
+        },
+    )
 
 # Daemon mode: persistent MCP connection
 _daemon_session: Optional[ClientSession] = None
@@ -57,28 +54,15 @@ def _check_npx() -> bool:
     return shutil.which("npx") is not None
 
 
-def _check_npx_has_domshell() -> bool:
-    """Check if DOMShell package is available to npx."""
-    try:
-        result = subprocess.run(
-            ["npx", "@apireno/domshell", "--version"],
-            capture_output=True,
-            timeout=10,
-        )
-        return result.returncode == 0
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return False
-
-
 def is_available() -> tuple[bool, str]:
-    """Check if DOMShell MCP server is available.
+    """Prove that the managed DOMShell runtime can be started securely.
 
     Returns:
         (available, message): Tuple of availability status and descriptive message.
 
     Examples:
         >>> is_available()
-        (True, "DOMShell v1.0.0 is available")
+        (True, "Managed DOMShell secure runtime is available")
         >>> is_available()
         (False, "npx not found. Install Node.js from https://nodejs.org/")
     """
@@ -89,25 +73,11 @@ def is_available() -> tuple[bool, str]:
             "Then run: npm install -g npx"
         )
 
-    if not _check_npx_has_domshell():
-        return (
-            False,
-            "DOMShell not found. Run `npx @apireno/domshell --version` once\n"
-            "Note: The first run may download the package (10-50 MB)."
-        )
-
-    # Try to get version
     try:
-        result = subprocess.run(
-            ["npx", "@apireno/domshell", "--version"],
-            capture_output=True,
-            timeout=10,
-            text=True,
-        )
-        version = result.stdout.strip() or "unknown"
-        return True, f"DOMShell {version} is available"
-    except Exception as e:
-        return False, f"DOMShell check failed: {e}"
+        managed_domshell.ensure_managed_domshell()
+        return True, "Managed DOMShell secure runtime is available"
+    except (managed_domshell.ManagedDOMShellError, RuntimeError) as error:
+        return False, str(error)
 
 
 async def _call_tool(
@@ -135,15 +105,12 @@ async def _call_tool(
         try:
             result = await _daemon_session.call_tool(tool_name, arguments)
             return result
-        except Exception as e:
+        except Exception:
             # Daemon died, fall back to spawning new server
             await _stop_daemon()
 
     # Spawn new MCP server process
-    server_params = StdioServerParameters(
-        command=DEFAULT_SERVER_CMD,
-        args=_build_server_args()
-    )
+    server_params = _server_parameters()
 
     try:
         async with stdio_client(server_params) as (read, write):
@@ -154,8 +121,8 @@ async def _call_tool(
     except Exception as e:
         raise RuntimeError(
             f"DOMShell MCP call failed: {e}\n"
-            f"Ensure Chrome is running with DOMShell extension installed.\n"
-            f"Chrome Web Store: https://chromewebstore.google.com/detail/domshell"
+            "Run `cli-anything-browser secure status` and configure the locally "
+            "built DOMShell extension for the managed browser."
         ) from e
 
 # NOTE: Known limitation - Daemon mode uses asyncio.run() per tool call (in sync wrappers).
@@ -177,10 +144,7 @@ async def _start_daemon() -> bool:
     if _daemon_session is not None:
         return True  # Already running
 
-    server_params = StdioServerParameters(
-        command=DEFAULT_SERVER_CMD,
-        args=_build_server_args()
-    )
+    server_params = _server_parameters()
 
     try:
         # Store the context manager so we can properly clean it up later
@@ -398,10 +362,7 @@ def type_text(path: str, text: str, use_daemon: bool = False) -> dict:
             await _daemon_session.call_tool("domshell_focus", {"name": path})
             return await _daemon_session.call_tool("domshell_type", {"text": text})
 
-        server_params = StdioServerParameters(
-            command=DEFAULT_SERVER_CMD,
-            args=_build_server_args()
-        )
+        server_params = _server_parameters()
         async with stdio_client(server_params) as (read, write):
             async with ClientSession(read, write) as session:
                 await session.initialize()
@@ -428,3 +389,15 @@ def start_daemon() -> bool:
 def stop_daemon() -> None:
     """Stop persistent daemon mode (sync wrapper)."""
     asyncio.run(_stop_daemon())
+
+
+def secure_runtime_status() -> dict[str, object]:
+    """Expose only non-secret managed-runtime state to CLI users."""
+
+    return managed_domshell.managed_status()
+
+
+def stop_secure_runtime() -> None:
+    """Stop the managed browser, MCP server, and DNS-pinning proxy."""
+
+    managed_domshell.stop_managed_domshell()

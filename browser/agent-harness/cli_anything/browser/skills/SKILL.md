@@ -16,10 +16,17 @@ A command-line interface for browser automation using [DOMShell](https://github.
    # Install Node.js from https://nodejs.org/
    npx --version
    ```
+   The managed Chrome launcher is also required:
+   ```bash
+   npm install -g agent-browser@0.34.0
+   agent-browser install
+   ```
 
-2. **Chrome/Chromium** with [DOMShell extension](https://chromewebstore.google.com/detail/domshell-browser-filesy/okcliheamhmijccjknkkplploacoidnp):
-   - Install extension in Chrome
-   - Ensure Chrome is running before using CLI
+2. **Trusted local DOMShell extension build**:
+   - Point `CLI_ANYTHING_DOMSHELL_EXTENSION_DIR` at a user-owned, non-writable
+     build directory containing its `manifest.json`.
+   - The CLI starts its own isolated Chrome and DNS-pinned egress proxy; do not
+     attach it to an existing Chrome or provide a legacy DOMSHELL_TOKEN.
 
 3. **Python 3.10+**
 
@@ -58,6 +65,12 @@ pip install -e .
 - `session status` — Show session state
 - `session daemon-start` — Start persistent daemon mode
 - `session daemon-stop` — Stop daemon mode
+
+### `secure` — Managed Egress Runtime
+
+- `secure status` — Show non-secret runtime state
+- `secure start` — Launch the isolated managed browser
+- `secure stop` — Stop browser, MCP server, and proxy
 
 ## Usage Examples
 

@@ -116,7 +116,7 @@ def cli(ctx, use_json, use_daemon):
 
     # Check DOMShell availability (skip for help/version to allow viewing docs without DOMShell)
     # Cache the result for REPL mode to avoid repeated npx subprocess spawns
-    if '--help' not in sys.argv and '--version' not in sys.argv:
+    if '--help' not in sys.argv and '--version' not in sys.argv and ctx.invoked_subcommand != "secure":
         if _availability_cached is None:
             _availability_cached = backend.is_available()
         available, msg = _availability_cached
@@ -125,10 +125,7 @@ def cli(ctx, use_json, use_daemon):
                 click.echo(json.dumps({"error": msg, "type": "dependency_error"}))
             else:
                 click.echo(f"Error: {msg}", err=True)
-                click.echo(
-                    "\nInstall DOMShell Chrome extension:\n"
-                    "  https://chromewebstore.google.com/detail/domshell"
-                )
+                click.echo("\nSee `cli-anything-browser secure status` for secure-runtime setup.")
             sys.exit(1)
 
     # Initialize session with daemon mode
@@ -357,6 +354,39 @@ def session_daemon_stop():
     output({"daemon": "stopped"}, "Daemon mode stopped")
 
 
+# ── Secure Runtime Commands ─────────────────────────────────────
+@cli.group()
+def secure():
+    """Inspect or control the private DNS-pinned browser runtime."""
+    pass
+
+
+@secure.command("status")
+@handle_error
+def secure_status():
+    """Show non-secret state for the managed secure browser runtime."""
+    output(backend.secure_runtime_status())
+
+
+@secure.command("start")
+@handle_error
+def secure_start():
+    """Start the managed browser and its DNS-pinning egress proxy."""
+    available, message = backend.is_available()
+    if not available:
+        raise RuntimeError(message)
+    output(backend.secure_runtime_status(), message)
+
+
+@secure.command("stop")
+@handle_error
+def secure_stop():
+    """Stop the managed browser, DOMShell server, and secure egress proxy."""
+    backend.stop_daemon()
+    backend.stop_secure_runtime()
+    output({"managed": False}, "Managed secure runtime stopped")
+
+
 # ── REPL ─────────────────────────────────────────────────────────
 @cli.command()
 @handle_error
@@ -377,6 +407,7 @@ def repl():
         "fs":       "ls|cd|cat|grep|pwd",
         "act":      "click|type",
         "session":  "status|daemon-start|daemon-stop",
+        "secure":   "status|start|stop",
         "help":     "Show this help",
         "quit":     "Exit REPL",
     }

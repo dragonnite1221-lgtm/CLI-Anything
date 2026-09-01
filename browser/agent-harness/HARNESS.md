@@ -17,9 +17,12 @@ This harness provides browser automation using [DOMShell](https://github.com/api
                     │                                     │            │
                     ▼                                     ▼            ▼
             ┌───────────────┐                 ┌────────────┐    ┌──────────┐
-            │ Spawn npx     │                 │  DOMShell  │    │  Chrome  │
-            │ subprocess    │◀──stdio─────────▶│  MCP Server│◀───│ + Ext    │
+            │ Spawn pinned  │                 │  DOMShell  │    │ Managed  │
+            │ npx bridge    │◀──stdio─────────▶│  MCP Server│◀───│ Chrome + │
             └───────────────┘                 └────────────┘    └──────────┘
+                                                                     │
+                                                              DNS-pinning
+                                                              egress proxy
 
 State Management:
 ┌─────────────────────────────────────────────────────────────────┐
@@ -37,13 +40,23 @@ DOMShell is an npm package that exposes Chrome's Accessibility Tree via MCP:
 
 ### Installation
 
-```bash
-# Verify DOMShell is available
-npx @apireno/domshell --version
+The CLI uses a private managed browser instead of an arbitrary existing Chrome
+process. Build the trusted extension locally, keep its directory user-owned and
+not group/world-writable, then configure it before first use:
 
-# Install Chrome extension
-# https://chromewebstore.google.com/detail/domshell
+```bash
+export CLI_ANYTHING_DOMSHELL_EXTENSION_DIR="$HOME/.local/share/cli-anything/domshell-extension"
+npm install -g agent-browser@0.34.0
+agent-browser install
+cli-anything-browser secure start
 ```
+
+The runtime uses `@apireno/domshell@2.0.10`, disables npm install scripts, and
+creates short-lived private credentials. It resolves each ordinary browser
+destination once and opens the TCP connection to the selected numeric global
+address, so DNS rebinding cannot change a checked public hostname into an
+intranet destination. The extension's token-authenticated local control socket
+is the only random-port loopback exception.
 
 ### MCP Tools
 
@@ -70,7 +83,8 @@ This is the first CLI-Anything harness to use an MCP server as a backend.
 
 **Backend wrapper** (`domshell_backend.py`):
 - Uses `mcp` Python SDK with `stdio` transport
-- Spawns `npx @apireno/domshell` subprocess per command
+- Spawns a pinned `@apireno/domshell@2.0.10` bridge per command
+- Starts DOMShell only inside the isolated managed Chrome profile
 - Async MCP interface wrapped in sync functions via `asyncio.run()`
 
 **Session management**:

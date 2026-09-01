@@ -10,6 +10,10 @@ A command-line interface for browser automation using [DOMShell](https://github.
 - **JSON output**: `--json` flag for machine-readable output
 - **Interactive REPL**: Stateful session with command history
 - **Daemon mode**: Optional persistent connection for faster interactive use
+- **DNS-pinned egress**: Every ordinary Chrome connection is made by a private
+  loopback proxy that resolves once, rejects non-global addresses, then opens
+  the socket to that numeric address. A URL cannot rebind to localhost or an
+  intranet after the CLI validates it.
 
 ## Installation
 
@@ -22,9 +26,25 @@ A command-line interface for browser automation using [DOMShell](https://github.
    npx --version
    ```
 
-2. **Chrome/Chromium** with DOMShell extension:
-   - Install DOMShell from [Chrome Web Store](https://chromewebstore.google.com/detail/domshell-%E2%80%94-browser-filesy/okcliheamhmijccjknkkplploacoidnp)
-   - Ensure Chrome is running before using the CLI
+   Install the compatible managed-browser launcher once:
+   ```bash
+   npm install -g agent-browser@0.34.0
+   agent-browser install
+   ```
+
+2. **A locally built, trusted DOMShell extension**:
+   - Build the extension from the audited DOMShell source and store its build
+     output in a user-owned directory that is not group/world-writable.
+   - Point the CLI to that directory before first use. The CLI launches its
+     own isolated Chrome profile; it does not attach to an existing Chrome.
+   ```bash
+   export CLI_ANYTHING_DOMSHELL_EXTENSION_DIR="$HOME/.local/share/cli-anything/domshell-extension"
+   cli-anything-browser secure start
+   ```
+
+   The extension control socket gets one random-port, token-authenticated
+   loopback exception. General page traffic remains proxied and cannot reach
+   arbitrary localhost, private, link-local, or mixed-DNS destinations.
 
 3. **Python 3.10+**:
    ```bash
@@ -41,7 +61,12 @@ pip install -e .
 Verify installation:
 ```bash
 cli-anything-browser --help
+cli-anything-browser secure status
 ```
+
+`DOMSHELL_TOKEN` and `DOMSHELL_PORT` from the legacy unmanaged integration are
+not used. The managed runtime creates its own private credentials and never
+prints them.
 
 ## Usage
 
@@ -168,6 +193,11 @@ REPL commands:
 - `daemon-start` — Start persistent daemon mode
 - `daemon-stop` — Stop daemon mode
 
+### `secure` — Managed Browser Runtime
+- `secure status` — Display non-secret runtime status without starting Chrome
+- `secure start` — Launch the isolated Chrome, pinned MCP server, and egress proxy
+- `secure stop` — Stop all three managed runtime processes
+
 ## Path Syntax
 
 DOMShell uses a filesystem-like path syntax for the Accessibility Tree:
@@ -234,22 +264,26 @@ pytest cli_anything/browser/tests/test_full_e2e.py -v
 ### "npx not found"
 Install Node.js from https://nodejs.org/
 
-### "DOMShell not found"
-Run: `npx @apireno/domshell --version` (first run downloads the package)
+### "CLI_ANYTHING_DOMSHELL_EXTENSION_DIR must point ..."
+Build the trusted DOMShell extension and set that variable to its directory
+containing `manifest.json`. The directory is loaded only into CLI-Anything's
+isolated browser profile.
 
-### "DOMShell MCP call failed"
-- Ensure Chrome is running
-- Install DOMShell extension from Chrome Web Store
-- Check that DOMShell is enabled in Chrome
+### "Managed DOMShell ..."
+Run `cli-anything-browser secure status`, confirm Node.js/npx is installed,
+then run `cli-anything-browser secure start`. Do not work around this by
+pointing the CLI at an existing Chrome or exporting a long-lived DOMShell token.
 
 ### Commands hang on first use
-First `npx` call downloads DOMShell package (10-50 MB). Subsequent calls are faster. Use `--daemon` mode for persistent connection.
+The first controlled `npx` call downloads the pinned DOMShell package. Package
+install scripts are disabled; use `--daemon` mode for persistent connections.
 
 ## Architecture
 
 This CLI follows the [CLI-Anything harness methodology](https://github.com/HKUDS/CLI-Anything/tree/main/cli-anything-plugin/HARNESS.md):
 
-- **Backend**: DOMShell MCP server via stdio transport
+- **Backend**: pinned DOMShell MCP server via stdio transport
+- **Browser boundary**: isolated Chrome profile and local DNS-pinning proxy
 - **State**: Page state (URL, working directory, navigation history)
 - **Pattern**: Filesystem-first commands map to Accessibility Tree
 

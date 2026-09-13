@@ -1720,7 +1720,7 @@ def render_live_html(session_ref: str, output_path: str, poll_ms: int = 1500) ->
           <article class="thumb">
             <img src="${{escapeHtml(url)}}" alt="${{escapeHtml(artifact.label || artifact.artifact_id || "Gallery frame")}}">
             <div class="label">${{escapeHtml(artifact.label || artifact.artifact_id || "Frame")}}</div>
-            <div class="meta">${{artifact.time_s != null ? `t=${{artifact.time_s}}s` : ""}}</div>
+            <div class="meta">${{artifact.time_s != null ? `t=${{escapeHtml(artifact.time_s)}}s` : ""}}</div>
           </article>
         `;
       }}).filter(Boolean);

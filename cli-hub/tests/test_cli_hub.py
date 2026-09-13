@@ -429,6 +429,17 @@ class TestPreviewBundle:
         assert "manifest = await fetchJson(`${CURRENT_LINK}/manifest.json`);" in content
         assert "const POLL_MS = 800;" in content
 
+    def test_render_live_html_escapes_gallery_time_s_before_innerhtml(self, tmp_path):
+        """Regression test for CLI-Anything-2: gallery artifact.time_s must be
+        HTML-escaped before it reaches root.innerHTML, same as every other
+        artifact field (label, url) rendered in the gallery card."""
+        session_dir = _make_preview_session(tmp_path)
+        output_path = tmp_path / "live.html"
+        render_live_html(str(session_dir), str(output_path), poll_ms=800)
+        content = output_path.read_text()
+        assert "t=${escapeHtml(artifact.time_s)}s" in content
+        assert "t=${artifact.time_s}s" not in content
+
     def test_render_live_html_with_trajectory(self, tmp_path):
         session_dir = _make_preview_session(tmp_path, with_trajectory=True)
         output_path = tmp_path / "live-trajectory.html"

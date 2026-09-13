@@ -78,9 +78,9 @@ def _install_strategy(cli):
     return "command"
 
 
-def _run_registry_action(cli, action):
+def _run_registry_action(cli, action, manager=None):
     try:
-        argv = registry_command_argv(cli, action)
+        argv = registry_command_argv(cli, action, manager=manager, uv_executable=_find_uv())
     except RegistryCommandRejected as exc:
         return None, str(exc)
     return _run_command(argv), None
@@ -191,7 +191,11 @@ def _pip_update(cli):
 def _uv_install(cli):
     if _find_uv() is None:
         return False, _UV_INSTALL_HINT
-    result = _run_command(cli["install_cmd"])
+    # manager="uv": we're already in the uv strategy handler, so treat the
+    # command as uv's even if the registry entry omitted package_manager.
+    result, error = _run_registry_action(cli, "install", manager="uv")
+    if error:
+        return False, f"Install blocked: {error}."
     if result.returncode == 0:
         return True, f"Installed {cli['display_name']} ({cli['entry_point']})"
     return False, f"uv install failed:\n{result.stderr or result.stdout}"
@@ -200,10 +204,11 @@ def _uv_install(cli):
 def _uv_uninstall(cli):
     if _find_uv() is None:
         return False, _UV_INSTALL_HINT
-    uninstall_cmd = cli.get("uninstall_cmd")
-    if not uninstall_cmd:
+    if not cli.get("uninstall_cmd"):
         return False, f"No uninstall command is defined for {cli['display_name']}."
-    result = _run_command(uninstall_cmd)
+    result, error = _run_registry_action(cli, "uninstall", manager="uv")
+    if error:
+        return False, f"Uninstall blocked: {error}."
     if result.returncode == 0:
         return True, f"Uninstalled {cli['display_name']}"
     return False, f"uv uninstall failed:\n{result.stderr or result.stdout}"
@@ -212,10 +217,11 @@ def _uv_uninstall(cli):
 def _uv_update(cli):
     if _find_uv() is None:
         return False, _UV_INSTALL_HINT
-    update_cmd = cli.get("update_cmd")
-    if not update_cmd:
+    if not cli.get("update_cmd"):
         return False, f"No update command is defined for {cli['display_name']}."
-    result = _run_command(update_cmd)
+    result, error = _run_registry_action(cli, "update", manager="uv")
+    if error:
+        return False, f"Update blocked: {error}."
     if result.returncode == 0:
         return True, f"Updated {cli['display_name']}"
     return False, f"uv update failed:\n{result.stderr or result.stdout}"

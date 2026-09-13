@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 
@@ -51,6 +52,24 @@ def _brew_argv(parts: list[str], action: str) -> list[str]:
     return parts
 
 
+def _uv_argv(parts: list[str], action: str, uv_executable: str) -> list[str]:
+    # parts[0] must be the exact literal "uv" (no path separators): a basename-only
+    # check would let a registry entry smuggle an arbitrary binary via "./uv" or
+    # "/attacker/dir/uv". The trusted, PATH-resolved executable is substituted in.
+    verbs = {"install": "install", "uninstall": "uninstall", "update": "upgrade"}
+    if (
+        len(parts) < 4
+        or parts[0] != "uv"
+        or parts[1] != "tool"
+        or parts[2] != verbs[action]
+    ):
+        raise RegistryCommandRejected(f"unsupported uv {action} command")
+    operands = parts[3:]
+    if len(operands) != 1 or operands[0].startswith("-"):
+        raise RegistryCommandRejected("uv tool commands must name exactly one package or source")
+    return [uv_executable, *parts[1:]]
+
+
 def _pip_argv(parts: list[str], action: str) -> list[str]:
     if len(parts) < 5 or os.path.basename(parts[0]) not in {"python", "python3"}:
         raise RegistryCommandRejected(f"unsupported pip {action} command")
@@ -69,16 +88,32 @@ def _pip_argv(parts: list[str], action: str) -> list[str]:
     return [sys.executable, *parts[1:]]
 
 
-def registry_command_argv(cli: dict, action: str) -> list[str]:
+def registry_command_argv(
+    cli: dict, action: str, *, manager: str | None = None, uv_executable: str | None = None
+) -> list[str]:
     """Return safe argv for a remote registry action, or reject it.
 
     Script installers are intentionally manual: consent does not make piping an
     unaudited network response into a shell a trustworthy installation path.
+
+    ``manager`` overrides ``cli["package_manager"]`` — pass it when the caller
+    already knows the intended manager from context (e.g. the uv-specific
+    install/uninstall/update handlers, which run only when install_strategy is
+    "uv" even if a registry entry omits package_manager). Left unset, only the
+    vetted ``package_manager`` field decides; an untrusted ``install_strategy``
+    value must never be treated as a manager name on its own, or a
+    non-canonical strategy like "brew" would ride the manager's own validator
+    with no package_manager cross-check.
+
+    ``uv_executable`` should be the caller's already-resolved, trusted path to
+    the ``uv`` binary (e.g. from ``shutil.which("uv")``); it is substituted in
+    place of whatever the registry command string named. It falls back to a
+    fresh PATH lookup when the caller doesn't supply one.
     """
     command = cli.get(f"{action}_cmd")
     if not command:
         raise RegistryCommandRejected(f"no {action} command is defined")
-    manager = cli.get("package_manager")
+    manager = manager or cli.get("package_manager")
     if manager == "script":
         raise RegistryCommandRejected(
             "automatic script installers are disabled; inspect the publisher's instructions manually"
@@ -88,4 +123,9 @@ def registry_command_argv(cli: dict, action: str) -> list[str]:
         return _brew_argv(parts, action)
     if manager == "pip":
         return _pip_argv(parts, action)
+    if manager == "uv":
+        resolved_uv = uv_executable or shutil.which("uv")
+        if not resolved_uv:
+            raise RegistryCommandRejected("uv executable was not found on PATH")
+        return _uv_argv(parts, action, resolved_uv)
     raise RegistryCommandRejected(f"unsupported registry package manager: {manager or 'unspecified'}")

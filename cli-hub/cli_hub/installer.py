@@ -80,7 +80,7 @@ def _install_strategy(cli):
 
 def _run_registry_action(cli, action):
     try:
-        argv = registry_command_argv(cli, action)
+        argv = registry_command_argv(cli, action, uv_executable=_find_uv())
     except RegistryCommandRejected as exc:
         return None, str(exc)
     return _run_command(argv), None

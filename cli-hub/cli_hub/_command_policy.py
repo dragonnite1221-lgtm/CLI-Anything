@@ -51,6 +51,21 @@ def _brew_argv(parts: list[str], action: str) -> list[str]:
     return parts
 
 
+def _uv_argv(parts: list[str], action: str) -> list[str]:
+    verbs = {"install": "install", "uninstall": "uninstall", "update": "upgrade"}
+    if (
+        len(parts) < 4
+        or os.path.basename(parts[0]) != "uv"
+        or parts[1] != "tool"
+        or parts[2] != verbs[action]
+    ):
+        raise RegistryCommandRejected(f"unsupported uv {action} command")
+    operands = parts[3:]
+    if len(operands) != 1 or operands[0].startswith("-"):
+        raise RegistryCommandRejected("uv tool commands must name exactly one package or source")
+    return parts
+
+
 def _pip_argv(parts: list[str], action: str) -> list[str]:
     if len(parts) < 5 or os.path.basename(parts[0]) not in {"python", "python3"}:
         raise RegistryCommandRejected(f"unsupported pip {action} command")
@@ -88,4 +103,6 @@ def registry_command_argv(cli: dict, action: str) -> list[str]:
         return _brew_argv(parts, action)
     if manager == "pip":
         return _pip_argv(parts, action)
+    if manager == "uv":
+        return _uv_argv(parts, action)
     raise RegistryCommandRejected(f"unsupported registry package manager: {manager or 'unspecified'}")

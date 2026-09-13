@@ -27,6 +27,13 @@ def test_pip_install_uses_current_interpreter():
     ]
 
 
+def test_uv_install_is_converted_to_argv():
+    entry = cli("uv", "uv tool install git+https://github.com/example/tool.git")
+    assert registry_command_argv(entry, "install") == [
+        "uv", "tool", "install", "git+https://github.com/example/tool.git"
+    ]
+
+
 @pytest.mark.parametrize(
     ("manager", "command"),
     [
@@ -34,6 +41,9 @@ def test_pip_install_uses_current_interpreter():
         ("brew", "brew install ok && rm -rf /"),
         ("brew", "python3 -c 'print(1)'"),
         ("pip", "python3 -m pip install --target /tmp tool"),
+        ("uv", "python3 -c 'print(123)'"),
+        ("uv", "uv tool install pkg && rm -rf /"),
+        (None, "python3 -c 'print(123)'"),
         ("unknown", "echo hello"),
     ],
 )

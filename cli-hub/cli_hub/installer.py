@@ -191,7 +191,9 @@ def _pip_update(cli):
 def _uv_install(cli):
     if _find_uv() is None:
         return False, _UV_INSTALL_HINT
-    result = _run_command(cli["install_cmd"])
+    result, error = _run_registry_action(cli, "install")
+    if error:
+        return False, f"Install blocked: {error}."
     if result.returncode == 0:
         return True, f"Installed {cli['display_name']} ({cli['entry_point']})"
     return False, f"uv install failed:\n{result.stderr or result.stdout}"
@@ -200,10 +202,11 @@ def _uv_install(cli):
 def _uv_uninstall(cli):
     if _find_uv() is None:
         return False, _UV_INSTALL_HINT
-    uninstall_cmd = cli.get("uninstall_cmd")
-    if not uninstall_cmd:
+    if not cli.get("uninstall_cmd"):
         return False, f"No uninstall command is defined for {cli['display_name']}."
-    result = _run_command(uninstall_cmd)
+    result, error = _run_registry_action(cli, "uninstall")
+    if error:
+        return False, f"Uninstall blocked: {error}."
     if result.returncode == 0:
         return True, f"Uninstalled {cli['display_name']}"
     return False, f"uv uninstall failed:\n{result.stderr or result.stdout}"
@@ -212,10 +215,11 @@ def _uv_uninstall(cli):
 def _uv_update(cli):
     if _find_uv() is None:
         return False, _UV_INSTALL_HINT
-    update_cmd = cli.get("update_cmd")
-    if not update_cmd:
+    if not cli.get("update_cmd"):
         return False, f"No update command is defined for {cli['display_name']}."
-    result = _run_command(update_cmd)
+    result, error = _run_registry_action(cli, "update")
+    if error:
+        return False, f"Update blocked: {error}."
     if result.returncode == 0:
         return True, f"Updated {cli['display_name']}"
     return False, f"uv update failed:\n{result.stderr or result.stdout}"

@@ -43,13 +43,25 @@ def test_uv_install_rejects_path_smuggled_binary(smuggled_uv):
         registry_command_argv(entry, "install", uv_executable="/usr/bin/uv")
 
 
-def test_uv_manager_inferred_from_install_strategy_when_unset():
-    """CLI-Anything-1 P2: install_strategy="uv" alone (no package_manager) must
-    still resolve to the uv handler instead of "unspecified manager"."""
+def test_uv_manager_override_used_when_package_manager_unset():
+    """CLI-Anything-1 P2: the uv install/uninstall/update handlers already know
+    they're on the uv strategy (they only run when install_strategy == "uv"),
+    so they pass manager="uv" explicitly instead of requiring a registry entry
+    to also repeat package_manager="uv"."""
     entry = {"install_strategy": "uv", "install_cmd": "uv tool install pkg"}
-    assert registry_command_argv(entry, "install", uv_executable="/usr/bin/uv") == [
+    assert registry_command_argv(entry, "install", manager="uv", uv_executable="/usr/bin/uv") == [
         "/usr/bin/uv", "tool", "install", "pkg"
     ]
+
+
+def test_untrusted_install_strategy_value_is_not_treated_as_manager():
+    """Regression guard: registry_command_argv must never infer a manager from
+    install_strategy on its own. Doing so previously let install_strategy="brew"
+    (with no package_manager) reach _brew_argv's basename-only check and run an
+    attacker-controlled path, e.g. "/attacker/dir/brew install payload"."""
+    entry = {"install_strategy": "brew", "install_cmd": "/attacker/dir/brew install payload"}
+    with pytest.raises(RegistryCommandRejected):
+        registry_command_argv(entry, "install")
 
 
 @pytest.mark.parametrize(

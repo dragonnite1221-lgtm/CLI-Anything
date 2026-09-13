@@ -89,12 +89,21 @@ def _pip_argv(parts: list[str], action: str) -> list[str]:
 
 
 def registry_command_argv(
-    cli: dict, action: str, *, uv_executable: str | None = None
+    cli: dict, action: str, *, manager: str | None = None, uv_executable: str | None = None
 ) -> list[str]:
     """Return safe argv for a remote registry action, or reject it.
 
     Script installers are intentionally manual: consent does not make piping an
     unaudited network response into a shell a trustworthy installation path.
+
+    ``manager`` overrides ``cli["package_manager"]`` — pass it when the caller
+    already knows the intended manager from context (e.g. the uv-specific
+    install/uninstall/update handlers, which run only when install_strategy is
+    "uv" even if a registry entry omits package_manager). Left unset, only the
+    vetted ``package_manager`` field decides; an untrusted ``install_strategy``
+    value must never be treated as a manager name on its own, or a
+    non-canonical strategy like "brew" would ride the manager's own validator
+    with no package_manager cross-check.
 
     ``uv_executable`` should be the caller's already-resolved, trusted path to
     the ``uv`` binary (e.g. from ``shutil.which("uv")``); it is substituted in
@@ -104,10 +113,7 @@ def registry_command_argv(
     command = cli.get(f"{action}_cmd")
     if not command:
         raise RegistryCommandRejected(f"no {action} command is defined")
-    # A registry entry may set install_strategy="uv"/"pip" without repeating an
-    # identical package_manager; fall back so it still resolves to that manager
-    # instead of being rejected as unspecified (CLI-Anything-1 P2 regression).
-    manager = cli.get("package_manager") or cli.get("install_strategy")
+    manager = manager or cli.get("package_manager")
     if manager == "script":
         raise RegistryCommandRejected(
             "automatic script installers are disabled; inspect the publisher's instructions manually"

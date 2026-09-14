@@ -40,19 +40,38 @@ def safe_output_file(output_path: str) -> Path:
     return intended_dir / raw.name
 
 
+# os.O_NOFOLLOW doesn't exist on native Windows (it does under WSL/Cygwin,
+# where os.name == "posix"). Where it's missing, fall back to an
+# immediately-before-open check: not atomic, so a narrower TOCTOU window
+# remains on that platform specifically, but it is still checked, and
+# creating filesystem symlinks on Windows normally requires elevated
+# privileges or Developer Mode in the first place.
+_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+
+# Match plain open(path, "w")'s default create mode (0o666, narrowed by the
+# process umask). os.open()'s own default is 0o777, which -- under a
+# typical 022 umask -- would make newly created preview files executable.
+_CREATE_MODE = 0o666
+
+
 def open_safe_output(path: Path) -> IO[str]:
     """Open `path` for text writing, refusing to follow a symlink planted at
     that exact location.
 
     `safe_output_file` only catches a symlink that already exists when it
     runs; the caller (HTML generation) can take a while after that check
-    before it actually writes. Opening with O_NOFOLLOW makes the write
-    itself atomic against a symlink appearing there in between -- the kernel
-    refuses the open outright instead of silently following it.
+    before it actually writes. Opening with O_NOFOLLOW (where available)
+    makes the write itself atomic against a symlink appearing there in
+    between -- the kernel refuses the open outright instead of silently
+    following it.
     """
 
     def _opener(file: str, flags: int) -> int:
-        return os.open(file, flags | os.O_NOFOLLOW)
+        if _NOFOLLOW:
+            return os.open(file, flags | _NOFOLLOW, _CREATE_MODE)
+        if os.path.islink(file):
+            raise OSError(errno.ELOOP, "symlink detected", file)
+        return os.open(file, flags, _CREATE_MODE)
 
     try:
         return open(path, "w", encoding="utf-8", opener=_opener)

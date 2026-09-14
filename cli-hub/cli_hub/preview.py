@@ -745,8 +745,7 @@ def render_html(bundle_ref: str, output_path: str) -> str:
     manifest = payload["manifest"]
     summary = payload["summary"]
     trajectory = payload.get("trajectory")
-    output_file = _safe_output_file(output_path)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
+    (output_file := _safe_output_file(output_path)).parent.mkdir(parents=True, exist_ok=True)
 
     headline = html.escape(
         summary.get("headline", f"{manifest.get('software', 'Preview')} preview bundle")
@@ -1020,8 +1019,7 @@ def render_live_html(session_ref: str, output_path: str, poll_ms: int = 1500) ->
     session_dir = Path(payload["session_dir"])
     session = payload["session"]
     trajectory = payload.get("trajectory")
-    output_file = _safe_output_file(output_path)
-    output_file.parent.mkdir(parents=True, exist_ok=True)
+    (output_file := _safe_output_file(output_path)).parent.mkdir(parents=True, exist_ok=True)
     headline = html.escape(
         session.get("project_name")
         or session.get("project_path")

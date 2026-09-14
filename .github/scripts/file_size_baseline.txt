@@ -49,7 +49,7 @@
 354 cli-hub/cli_hub/analytics.py
 370 cli-hub/cli_hub/cli.py
 373 cli-hub/cli_hub/installer.py
-1892 cli-hub/cli_hub/preview.py
+1891 cli-hub/cli_hub/preview.py
 1230 cli-hub/tests/test_cli_hub.py
 760 cloudanalyzer/agent-harness/cli_anything/cloudanalyzer/cloudanalyzer_cli.py
 294 cloudanalyzer/agent-harness/cli_anything/cloudanalyzer/utils/ca_backend.py

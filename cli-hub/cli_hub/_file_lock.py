@@ -57,10 +57,14 @@ def _msvcrt_lock(handle):
             msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
             return
         except OSError as error:
-            # EACCES means another handle currently holds the region --
-            # retry. Anything else (EBADF, EINVAL, ...) is a real failure
-            # that will never resolve by itself; don't spin on it forever.
-            if error.errno != errno.EACCES:
+            # LK_LOCK is documented (Microsoft CRT _locking reference) to
+            # retry internally for ~10 seconds on contention, reporting
+            # EACCES if it gives up quickly and EDEADLOCK once that longer
+            # internal retry window itself times out -- both just mean
+            # "still held by someone else," not a real failure, so both
+            # are retried here. Anything else (EBADF, EINVAL, ...) is a
+            # genuine failure that will never resolve by itself.
+            if error.errno not in (errno.EACCES, errno.EDEADLOCK):
                 raise
 
 

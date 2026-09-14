@@ -94,6 +94,7 @@ async def handle_proxy_client(
                 destination_writer,
                 headers,
                 timeout_seconds,
+                version,
             )
             return
     except (

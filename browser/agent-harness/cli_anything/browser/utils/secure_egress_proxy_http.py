@@ -138,13 +138,18 @@ async def relay_http_request(
     destination_writer: asyncio.StreamWriter,
     headers: list[str],
     timeout_seconds: int,
+    version: str = "HTTP/1.1",
 ) -> None:
     """Forward exactly one framed HTTP request, then close the client connection."""
 
     try:
         framing, length = _body_framing(headers)
         send_body = True
-        if _expects_continue(headers):
+        # RFC 9110 10.1.1: a server MUST ignore Expect: 100-continue on an
+        # HTTP/1.0 request. A destination speaking HTTP/1.0 will never send
+        # the interim response, so waiting for one here would deadlock
+        # exactly like the bug this relay exists to fix.
+        if version == "HTTP/1.1" and _expects_continue(headers):
             send_body = await _relay_interim_response(destination_reader, client_writer, timeout_seconds)
         if send_body:
             if framing == "chunked":

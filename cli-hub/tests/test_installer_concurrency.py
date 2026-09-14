@@ -69,8 +69,11 @@ def test_concurrent_installs_do_not_lose_state(tmp_path):
         def worker(name):
             results[name] = install_cli(name)
 
-        t1 = threading.Thread(target=worker, args=("cli-a",))
-        t2 = threading.Thread(target=worker, args=("cli-b",))
+        # daemon=True: if a regression reintroduces a deadlock, the join
+        # timeout below still fails the test instead of hanging the whole
+        # pytest process waiting for a stuck non-daemon thread at exit.
+        t1 = threading.Thread(target=worker, args=("cli-a",), daemon=True)
+        t2 = threading.Thread(target=worker, args=("cli-b",), daemon=True)
         t1.start()
         t2.start()
         t1.join(timeout=10)

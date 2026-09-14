@@ -12,6 +12,7 @@ such a sequence in.
 from __future__ import annotations
 
 import contextlib
+import errno
 from pathlib import Path
 
 try:
@@ -55,8 +56,12 @@ def _msvcrt_lock(handle):
         try:
             msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
             return
-        except OSError:
-            continue
+        except OSError as error:
+            # EACCES means another handle currently holds the region --
+            # retry. Anything else (EBADF, EINVAL, ...) is a real failure
+            # that will never resolve by itself; don't spin on it forever.
+            if error.errno != errno.EACCES:
+                raise
 
 
 def _msvcrt_unlock(handle):

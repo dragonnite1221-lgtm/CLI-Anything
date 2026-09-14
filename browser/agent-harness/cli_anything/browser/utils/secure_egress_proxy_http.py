@@ -31,35 +31,62 @@ def _body_framing(headers: list[str]) -> tuple[str, int]:
 def _expects_continue(headers: list[str]) -> bool:
     for header in headers:
         name, separator, value = header.partition(":")
-        if separator and name.strip().lower() == "expect" and value.strip().lower() == "100-continue":
+        if not separator or name.strip().lower() != "expect":
+            continue
+        # Expect is a comma-separated list (RFC 9110 10.1.1); "100-continue"
+        # is the only expectation defined, but it need not stand alone.
+        tokens = [token.strip().lower() for token in value.split(",")]
+        if "100-continue" in tokens:
             return True
     return False
+
+
+def _status_code(status_line: bytes) -> int | None:
+    parts = status_line.split(b" ", 2)
+    if len(parts) < 2:
+        return None
+    try:
+        return int(parts[1])
+    except ValueError:
+        return None
 
 
 async def _relay_interim_response(
     reader: asyncio.StreamReader, writer: asyncio.StreamWriter, timeout_seconds: int
 ) -> bool:
-    """Relay one interim status line + headers from the destination to the client.
+    """Relay interim (1xx) responses from the destination to the client,
+    stopping at the first 100 Continue or first final (non-1xx) status.
 
     A destination that honors ``Expect: 100-continue`` answers with a "100
     Continue" status line before the client is willing to upload its body.
     That interim response must reach the client immediately -- otherwise the
     client withholds the body waiting for a signal the proxy never forwards,
     while the proxy blocks waiting to read that same body from the client.
-    Returns True when the destination signalled 100 Continue (so the body
-    should still be uploaded), False when it sent a final status instead (so
-    the body must not be sent and this response is the answer to relay).
+    A compliant destination may also send other 1xx responses first (e.g.
+    103 Early Hints) before 100 Continue; those must be relayed and skipped
+    over rather than mistaken for the final answer. The status code -- not
+    the free-form reason phrase -- decides how to proceed. Returns True once
+    100 Continue is seen (the body should still be uploaded), False once a
+    final status is seen instead (the body must not be sent and this
+    response is the answer to relay).
     """
 
-    status_line = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=timeout_seconds)
-    writer.write(status_line)
     while True:
-        line = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=timeout_seconds)
-        writer.write(line)
-        if line == b"\r\n":
-            break
-    await writer.drain()
-    return status_line in (b"HTTP/1.1 100 Continue\r\n", b"HTTP/1.0 100 Continue\r\n")
+        status_line = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=timeout_seconds)
+        writer.write(status_line)
+        while True:
+            line = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=timeout_seconds)
+            writer.write(line)
+            if line == b"\r\n":
+                break
+        await writer.drain()
+        status = _status_code(status_line)
+        if status == 100:
+            return True
+        if status is None or status >= 200:
+            return False
+        # Other 1xx informational response (e.g. 103 Early Hints): keep
+        # reading for the response that actually answers the Expect.
 
 
 async def _read_exact(reader: asyncio.StreamReader, size: int, timeout_seconds: int) -> bytes:

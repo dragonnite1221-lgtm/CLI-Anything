@@ -45,10 +45,11 @@ def exclusive_lock(lock_path: Path):
 
 
 def _msvcrt_lock(handle):
-    handle.seek(0)
-    if not handle.read(1):
-        handle.write(b"0")
-        handle.flush()
+    # Windows byte-range locks deny other handles read access too, so a
+    # concurrent holder's read of this byte (to check emptiness, say) would
+    # itself raise OSError while contended. Lock directly instead -- Windows
+    # allows locking a byte range beyond the current end of file, so there
+    # is no need to read or write the file before locking it.
     handle.seek(0)
     while True:
         try:

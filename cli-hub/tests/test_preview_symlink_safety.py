@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pytest
 
+from cli_hub._safe_output import open_safe_output, safe_output_file
 from cli_hub.preview import render_html, render_live_html
 from tests.test_cli_hub import _make_preview_bundle, _make_preview_session
 
@@ -58,5 +59,26 @@ def test_render_live_html_rejects_symlinked_output_escaping_directory(tmp_path):
 
     with pytest.raises(ValueError, match="symlink"):
         render_live_html(str(session_dir), str(output_path), poll_ms=800)
+
+    assert victim.read_text() == "do-not-overwrite"
+
+
+def test_open_safe_output_refuses_a_symlink_planted_after_the_check(tmp_path):
+    """Closes the TOCTOU gap: safe_output_file() only sees a symlink that
+    already exists at check time. HTML generation runs between that check
+    and the actual write, so a symlink can be planted at the exact output
+    path during that window. The write itself (open_safe_output, using
+    O_NOFOLLOW) must still refuse to follow it rather than silently
+    clobbering whatever it points to."""
+    output_path = tmp_path / "preview.html"
+    resolved = safe_output_file(str(output_path))  # nothing exists yet -> passes
+
+    victim = tmp_path / "victim.txt"
+    victim.write_text("do-not-overwrite")
+    resolved.symlink_to(victim)  # attacker plants the symlink after the check
+
+    with pytest.raises(ValueError, match="symlink"):
+        with open_safe_output(resolved) as fh:
+            fh.write("clobbered")
 
     assert victim.read_text() == "do-not-overwrite"

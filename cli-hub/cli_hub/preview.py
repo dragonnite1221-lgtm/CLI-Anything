@@ -11,7 +11,7 @@ import subprocess
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
-from cli_hub._safe_output import safe_output_file as _safe_output_file
+from cli_hub._safe_output import open_safe_output as _open_safe_output, safe_output_file as _safe_output_file
 
 
 def _read_json(path: Path) -> Dict[str, Any]:
@@ -1010,7 +1010,7 @@ def render_html(bundle_ref: str, output_path: str) -> str:
 </body>
 </html>
 """
-    with open(output_file, "w", encoding="utf-8") as fh:
+    with _open_safe_output(output_file) as fh:
         fh.write(html_text)
     return str(output_file)
 
@@ -1832,7 +1832,7 @@ def render_live_html(session_ref: str, output_path: str, poll_ms: int = 1500) ->
 </body>
 </html>
 """
-    with open(output_file, "w", encoding="utf-8") as fh:
+    with _open_safe_output(output_file) as fh:
         fh.write(html_text)
     return str(output_file)
 

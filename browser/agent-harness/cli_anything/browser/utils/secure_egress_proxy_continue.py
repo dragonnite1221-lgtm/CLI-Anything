@@ -54,6 +54,32 @@ def _status_code(status_line: bytes) -> int | None:
         return None
 
 
+async def _read_status_line(
+    reader: asyncio.StreamReader, initial_timeout_seconds: int, continuation_timeout_seconds: int
+) -> bytes:
+    """Read one CRLF-terminated status line, applying the short grace
+    period only to whether *any* byte of it arrives at all.
+
+    ``readuntil(...)`` is a single atomic wait for the full delimiter, so
+    timing the whole call with the short grace period would also abandon a
+    response that has already started arriving (e.g. "HTTP/1.1 100 " sent,
+    then a pause before the rest) -- indistinguishable, from the outside,
+    from one that never started. Reading the first byte on its own settles
+    that distinction: nothing within the grace period really means no
+    response is coming; anything at all means the destination has already
+    committed to one, and finishing that line is then governed by the
+    normal continuation timeout like every other read in this function.
+    """
+    try:
+        first_byte = await asyncio.wait_for(reader.read(1), timeout=initial_timeout_seconds)
+    except asyncio.TimeoutError:
+        raise NoInterimResponse from None
+    if not first_byte:
+        raise NoInterimResponse  # destination closed before sending anything
+    rest = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=continuation_timeout_seconds)
+    return first_byte + rest
+
+
 async def relay_interim_response(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
@@ -89,10 +115,7 @@ async def relay_interim_response(
     """
 
     while True:
-        try:
-            status_line = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=initial_timeout_seconds)
-        except asyncio.TimeoutError:
-            raise NoInterimResponse from None
+        status_line = await _read_status_line(reader, initial_timeout_seconds, continuation_timeout_seconds)
         writer.write(status_line)
         await writer.drain()
         while True:

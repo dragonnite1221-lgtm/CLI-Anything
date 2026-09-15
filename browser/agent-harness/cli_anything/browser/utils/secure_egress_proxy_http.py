@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import asyncio
 
+from cli_anything.browser.utils.secure_egress_proxy_continue import (
+    CONTINUE_GRACE_SECONDS,
+    NoInterimResponse,
+    expects_continue,
+    relay_interim_response,
+)
+
 
 def _body_framing(headers: list[str]) -> tuple[str, int]:
     lengths: list[int] = []
@@ -26,78 +33,6 @@ def _body_framing(headers: list[str]) -> tuple[str, int]:
             raise ValueError("Proxy request transfer encoding is unsupported")
         return "chunked", 0
     return "length", lengths[0] if lengths else 0
-
-
-def _expects_continue(headers: list[str]) -> bool:
-    for header in headers:
-        name, separator, value = header.partition(":")
-        if not separator or name.strip().lower() != "expect":
-            continue
-        # Expect is a comma-separated list (RFC 9110 10.1.1); "100-continue"
-        # is the only expectation defined, but it need not stand alone.
-        tokens = [token.strip().lower() for token in value.split(",")]
-        if "100-continue" in tokens:
-            return True
-    return False
-
-
-def _status_code(status_line: bytes) -> int | None:
-    parts = status_line.split(b" ", 2)
-    if len(parts) < 2:
-        return None
-    try:
-        return int(parts[1])
-    except ValueError:
-        return None
-
-
-# RFC 9110 10.1.1 permits a destination to omit the 100-Continue response
-# entirely and just read the request body directly -- there is no way to
-# tell "not sending one" apart from "about to send one" except by waiting.
-# The same section tells *clients* not to wait indefinitely for exactly
-# this reason. Mirror that with a short, bounded grace period instead of
-# the full per-operation timeout, so a destination that silently proceeds
-# doesn't deadlock this relay for the whole connection timeout.
-_CONTINUE_GRACE_SECONDS = 1
-
-
-async def _relay_interim_response(
-    reader: asyncio.StreamReader, writer: asyncio.StreamWriter, timeout_seconds: int
-) -> bool:
-    """Relay interim (1xx) responses from the destination to the client,
-    stopping at the first 100 Continue or first final (non-1xx) status.
-
-    A destination that honors ``Expect: 100-continue`` answers with a "100
-    Continue" status line before the client is willing to upload its body.
-    That interim response must reach the client immediately -- otherwise the
-    client withholds the body waiting for a signal the proxy never forwards,
-    while the proxy blocks waiting to read that same body from the client.
-    A compliant destination may also send other 1xx responses first (e.g.
-    103 Early Hints) before 100 Continue; those must be relayed and skipped
-    over rather than mistaken for the final answer. The status code -- not
-    the free-form reason phrase -- decides how to proceed. Returns True once
-    100 Continue is seen (the body should still be uploaded), False once a
-    final status is seen instead (the body must not be sent and this
-    response is the answer to relay).
-    """
-
-    while True:
-        status_line = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=timeout_seconds)
-        writer.write(status_line)
-        await writer.drain()
-        while True:
-            line = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=timeout_seconds)
-            writer.write(line)
-            await writer.drain()
-            if line == b"\r\n":
-                break
-        status = _status_code(status_line)
-        if status == 100:
-            return True
-        if status is None or status >= 200:
-            return False
-        # Other 1xx informational response (e.g. 103 Early Hints): keep
-        # reading for the response that actually answers the Expect.
 
 
 async def _read_exact(reader: asyncio.StreamReader, size: int, timeout_seconds: int) -> bytes:
@@ -160,15 +95,23 @@ async def relay_http_request(
         # HTTP/1.0 request. A destination speaking HTTP/1.0 will never send
         # the interim response, so waiting for one here would deadlock
         # exactly like the bug this relay exists to fix.
-        if version == "HTTP/1.1" and _expects_continue(headers):
-            grace = min(timeout_seconds, _CONTINUE_GRACE_SECONDS)
+        if version == "HTTP/1.1" and expects_continue(headers):
+            grace = min(timeout_seconds, CONTINUE_GRACE_SECONDS)
             try:
-                send_body = await _relay_interim_response(destination_reader, client_writer, grace)
-            except asyncio.TimeoutError:
-                # The destination hasn't answered the Expect within the
-                # grace period. RFC 9110 10.1.1 explicitly allows it to
-                # skip the interim response and read the body directly, so
-                # -- like a real client would -- stop waiting and send it.
+                send_body = await relay_interim_response(
+                    destination_reader, client_writer, grace, timeout_seconds
+                )
+            except NoInterimResponse:
+                # No response started arriving at all within the grace
+                # period. RFC 9110 10.1.1 explicitly allows the destination
+                # to skip the interim response and read the body directly,
+                # so -- like a real client would -- stop waiting and send
+                # it. (A stall partway through an already-started response
+                # instead raises a plain asyncio.TimeoutError here, which
+                # is deliberately NOT caught: the client has already
+                # received a partial status line/headers by that point, so
+                # papering over it and proceeding to send the body would
+                # corrupt the response framing rather than recover it.)
                 send_body = True
         if send_body:
             if framing == "chunked":

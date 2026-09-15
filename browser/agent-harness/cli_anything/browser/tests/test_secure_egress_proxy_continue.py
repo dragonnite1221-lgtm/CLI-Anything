@@ -1,24 +1,24 @@
-"""Unit tests for the pure helper functions in secure_egress_proxy_http."""
+"""Unit tests for the pure helper functions in secure_egress_proxy_continue."""
 
 from __future__ import annotations
 
-from cli_anything.browser.utils.secure_egress_proxy_http import _expects_continue, _status_code
+from cli_anything.browser.utils.secure_egress_proxy_continue import _status_code, expects_continue
 
 
 def test_expects_continue_true_for_bare_100_continue():
-    assert _expects_continue(["Host: example.com", "Expect: 100-continue"])
+    assert expects_continue(["Host: example.com", "Expect: 100-continue"])
 
 
 def test_expects_continue_true_when_listed_alongside_other_tokens():
     """Expect is a comma-separated list (RFC 9110 10.1.1); 100-continue need
     not be the only or first token."""
-    assert _expects_continue(["Expect: foo, 100-continue"])
-    assert _expects_continue(["Expect: 100-Continue , bar"])
+    assert expects_continue(["Expect: foo, 100-continue"])
+    assert expects_continue(["Expect: 100-Continue , bar"])
 
 
 def test_expects_continue_false_when_absent_or_unrelated():
-    assert not _expects_continue(["Host: example.com"])
-    assert not _expects_continue(["Expect: foo"])
+    assert not expects_continue(["Host: example.com"])
+    assert not expects_continue(["Expect: foo"])
 
 
 def test_status_code_parses_regardless_of_reason_phrase():

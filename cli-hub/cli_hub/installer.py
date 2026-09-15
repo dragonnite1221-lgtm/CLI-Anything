@@ -12,6 +12,7 @@ from cli_hub._command_policy import (
     registry_command_argv,
     run_command as _run_command,
 )
+from cli_hub._file_lock import exclusive_lock
 from cli_hub.registry import get_cli
 
 INSTALLED_FILE = Path.home() / ".cli-hub" / "installed.json"
@@ -29,6 +30,17 @@ def _load_installed():
 def _save_installed(data):
     INSTALLED_FILE.parent.mkdir(parents=True, exist_ok=True)
     INSTALLED_FILE.write_text(json.dumps(data, indent=2))
+
+
+def _update_installed(name, entry):
+    """Set/remove one CLI's installed.json record under an exclusive lock."""
+    with exclusive_lock(INSTALLED_FILE.with_suffix(INSTALLED_FILE.suffix + ".lock")):
+        installed = _load_installed()
+        if entry is None:
+            installed.pop(name, None)
+        else:
+            installed[name] = entry
+        _save_installed(installed)
 
 
 def _find_npm():
@@ -322,9 +334,7 @@ def install_cli(name):
     strategy, (success, msg) = _perform_action(cli, "install")
 
     if success:
-        installed = _load_installed()
-        installed[cli["name"]] = _installed_entry(cli, source, strategy)
-        _save_installed(installed)
+        _update_installed(cli["name"], _installed_entry(cli, source, strategy))
 
     return success, msg
 
@@ -338,9 +348,7 @@ def uninstall_cli(name):
     _, (success, msg) = _perform_action(cli, "uninstall")
 
     if success:
-        installed = _load_installed()
-        installed.pop(cli["name"], None)
-        _save_installed(installed)
+        _update_installed(cli["name"], None)
 
     return success, msg
 
@@ -355,9 +363,7 @@ def update_cli(name):
     strategy, (success, msg) = _perform_action(cli, "update")
 
     if success:
-        installed = _load_installed()
-        installed[cli["name"]] = _installed_entry(cli, source, strategy)
-        _save_installed(installed)
+        _update_installed(cli["name"], _installed_entry(cli, source, strategy))
 
     return success, msg
 

@@ -50,6 +50,14 @@ _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 _O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 _SUPPORTS_DIR_FD = bool(_NOFOLLOW and _O_DIRECTORY) and os.open in os.supports_dir_fd
 
+# O_PATH (Linux) opens a directory purely for path resolution -- as the
+# dir_fd for a later openat() -- without requiring read permission on it,
+# unlike plain O_RDONLY. Without it (macOS, other POSIX), a write+execute
+# but non-readable "dropbox" directory (mode 0333) that plain open(path,
+# "w") could create files in would make this dir_fd open fail with EACCES;
+# O_PATH avoids that regression on the platform where it's available.
+_DIR_OPEN_FLAGS = getattr(os, "O_PATH", os.O_RDONLY) | _O_DIRECTORY
+
 # Match plain open(path, "w")'s default create mode (0o666, narrowed by the
 # process umask). os.open()'s own default is 0o777, which -- under a
 # typical 022 umask -- would make newly created preview files executable.
@@ -95,7 +103,7 @@ def open_safe_output(path: Path) -> IO[str]:
     name = os.path.basename(os.fspath(path))
 
     if _SUPPORTS_DIR_FD:
-        dir_fd = os.open(directory, os.O_RDONLY | _O_DIRECTORY)
+        dir_fd = os.open(directory, _DIR_OPEN_FLAGS)
         try:
             def _opener(_file: str, flags: int, _dir_fd: int = dir_fd) -> int:
                 return os.open(name, flags | _NOFOLLOW, _CREATE_MODE, dir_fd=_dir_fd)

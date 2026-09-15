@@ -138,3 +138,26 @@ def test_open_safe_output_leaf_creation_is_pinned_to_the_opened_directory(tmp_pa
 
     assert (moved_dir / "preview.html").read_text() == "hello"
     assert not (decoy_dir / "preview.html").exists()
+
+
+@pytest.mark.skipif(not _SUPPORTS_DIR_FD, reason="dir_fd not supported on this platform")
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0, reason="root bypasses directory permission checks")
+def test_open_safe_output_works_in_a_write_only_directory(tmp_path):
+    """A "dropbox" directory (mode 0333: write + execute, no read) is a
+    legitimate pattern -- plain open(path, "w") can create a file in one
+    without ever needing to read the directory. Opening the directory by
+    descriptor must not introduce a new read-permission requirement that
+    the original unguarded write didn't have."""
+    dropbox = tmp_path / "dropbox"
+    dropbox.mkdir()
+    dropbox.chmod(0o333)
+    output_path = dropbox / "preview.html"
+
+    try:
+        resolved = safe_output_file(str(output_path))
+        with open_safe_output(resolved) as fh:
+            fh.write("hello")
+    finally:
+        dropbox.chmod(0o755)  # restore so pytest's tmp_path cleanup can list it
+
+    assert (dropbox / "preview.html").read_text() == "hello"

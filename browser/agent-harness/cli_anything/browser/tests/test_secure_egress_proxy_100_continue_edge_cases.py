@@ -115,3 +115,53 @@ def test_live_http_10_request_with_expect_header_does_not_wait_for_continue(monk
     response = asyncio.run(exercise_proxy())
 
     assert response.startswith(b"HTTP/1.0 201 Created")
+
+
+def test_live_http_proxy_half_closes_when_destination_rejects_the_body(monkeypatch):
+    """A destination that sends its final response before accepting the
+    body (e.g. rejecting an Expect: 100-continue upload outright with a
+    non-100 status) may still wait for the client's write-side EOF before
+    it considers the exchange finished. If the proxy skipped write_eof()
+    whenever it decided not to send the body, that destination would hang
+    waiting for EOF forever, and the proxy's own response relay would hang
+    right along with it -- a deadlock on the rejection path instead of the
+    acceptance path this relay already handles."""
+
+    async def exercise_proxy():
+        async def origin(reader, writer):
+            await reader.readuntil(b"\r\n\r\n")
+            writer.write(b"HTTP/1.1 417 Expectation Failed\r\nContent-Length: 0\r\n\r\n")
+            await writer.drain()
+            # Only completes if the proxy actually half-closed its side.
+            remainder = await asyncio.wait_for(reader.read(), timeout=5)
+            assert remainder == b""
+            writer.close()
+
+        origin_server = await asyncio.start_server(origin, "127.0.0.1", 0)
+        origin_port = origin_server.sockets[0].getsockname()[1]
+        monkeypatch.setattr(proxy, "open_pinned_connection", lambda *_args: asyncio.open_connection("127.0.0.1", origin_port))
+        server = await proxy.start_proxy()
+        proxy_port = server.sockets[0].getsockname()[1]
+        try:
+            reader, writer = await asyncio.open_connection("127.0.0.1", proxy_port)
+            writer.write(
+                b"POST http://example.com/upload HTTP/1.1\r\n"
+                b"Host: example.com\r\n"
+                b"Content-Length: 4\r\n"
+                b"Expect: 100-continue\r\n\r\n"
+            )
+            await writer.drain()
+
+            response = await asyncio.wait_for(reader.read(), timeout=5)
+            writer.close()
+            await writer.wait_closed()
+            return response
+        finally:
+            server.close()
+            await server.wait_closed()
+            origin_server.close()
+            await origin_server.wait_closed()
+
+    response = asyncio.run(exercise_proxy())
+
+    assert response.startswith(b"HTTP/1.1 417 Expectation Failed")

@@ -128,3 +128,55 @@ def test_live_http_proxy_relays_100_continue_with_nonstandard_reason_phrase(monk
     assert interim == b"HTTP/1.1 100 Go Ahead\r\n\r\n"
     assert response.startswith(b"HTTP/1.1 201 Created")
 
+
+def test_live_http_proxy_sends_body_after_grace_period_when_destination_ignores_expect(monkeypatch):
+    """RFC 9110 10.1.1 allows a destination to omit the 100-Continue
+    response entirely and just read the request body directly -- there is
+    no way to tell "not sending one" apart from "about to send one" except
+    by waiting. The proxy must not block for the whole per-request timeout
+    in that case; a short, bounded grace period, then send the body anyway,
+    exactly like a real 100-continue client does."""
+
+    async def exercise_proxy():
+        async def origin(reader, writer):
+            await reader.readuntil(b"\r\n\r\n")
+            # No interim response at all: go straight to the body, as a
+            # destination that silently ignores Expect is allowed to.
+            await reader.readexactly(4)
+            writer.write(b"HTTP/1.1 201 Created\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            await writer.drain()
+            writer.close()
+
+        origin_server = await asyncio.start_server(origin, "127.0.0.1", 0)
+        origin_port = origin_server.sockets[0].getsockname()[1]
+        monkeypatch.setattr(proxy, "open_pinned_connection", lambda *_args: asyncio.open_connection("127.0.0.1", origin_port))
+        server = await proxy.start_proxy()
+        proxy_port = server.sockets[0].getsockname()[1]
+        try:
+            reader, writer = await asyncio.open_connection("127.0.0.1", proxy_port)
+            writer.write(
+                b"POST http://example.com/upload HTTP/1.1\r\n"
+                b"Host: example.com\r\n"
+                b"Content-Length: 4\r\n"
+                b"Expect: 100-continue\r\n\r\n"
+                b"test"
+            )
+            await writer.drain()
+
+            # Well under the proxy's real ~15s connection timeout, but
+            # comfortably above the short grace period -- fails fast if
+            # this regresses back to waiting for the full timeout.
+            response = await asyncio.wait_for(reader.read(), timeout=5)
+            writer.close()
+            await writer.wait_closed()
+            return response
+        finally:
+            server.close()
+            await server.wait_closed()
+            origin_server.close()
+            await origin_server.wait_closed()
+
+    response = asyncio.run(exercise_proxy())
+
+    assert response.startswith(b"HTTP/1.1 201 Created")
+

@@ -51,6 +51,16 @@ def _status_code(status_line: bytes) -> int | None:
         return None
 
 
+# RFC 9110 10.1.1 permits a destination to omit the 100-Continue response
+# entirely and just read the request body directly -- there is no way to
+# tell "not sending one" apart from "about to send one" except by waiting.
+# The same section tells *clients* not to wait indefinitely for exactly
+# this reason. Mirror that with a short, bounded grace period instead of
+# the full per-operation timeout, so a destination that silently proceeds
+# doesn't deadlock this relay for the whole connection timeout.
+_CONTINUE_GRACE_SECONDS = 1
+
+
 async def _relay_interim_response(
     reader: asyncio.StreamReader, writer: asyncio.StreamWriter, timeout_seconds: int
 ) -> bool:
@@ -74,12 +84,13 @@ async def _relay_interim_response(
     while True:
         status_line = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=timeout_seconds)
         writer.write(status_line)
+        await writer.drain()
         while True:
             line = await asyncio.wait_for(reader.readuntil(b"\r\n"), timeout=timeout_seconds)
             writer.write(line)
+            await writer.drain()
             if line == b"\r\n":
                 break
-        await writer.drain()
         status = _status_code(status_line)
         if status == 100:
             return True
@@ -150,7 +161,15 @@ async def relay_http_request(
         # the interim response, so waiting for one here would deadlock
         # exactly like the bug this relay exists to fix.
         if version == "HTTP/1.1" and _expects_continue(headers):
-            send_body = await _relay_interim_response(destination_reader, client_writer, timeout_seconds)
+            grace = min(timeout_seconds, _CONTINUE_GRACE_SECONDS)
+            try:
+                send_body = await _relay_interim_response(destination_reader, client_writer, grace)
+            except asyncio.TimeoutError:
+                # The destination hasn't answered the Expect within the
+                # grace period. RFC 9110 10.1.1 explicitly allows it to
+                # skip the interim response and read the body directly, so
+                # -- like a real client would -- stop waiting and send it.
+                send_body = True
         if send_body:
             if framing == "chunked":
                 await _forward_chunked_body(client_reader, destination_writer, timeout_seconds)
@@ -161,9 +180,13 @@ async def relay_http_request(
                     destination_writer.write(chunk)
                     await destination_writer.drain()
                     remaining -= len(chunk)
-            if destination_writer.can_write_eof():
-                destination_writer.write_eof()
-            await destination_writer.drain()
+        # Whether or not a body was sent, the request side of this exchange
+        # is finished: a destination that only accepts the request after
+        # seeing our half of the stream close must still see that EOF, even
+        # when it rejected the body outright.
+        if destination_writer.can_write_eof():
+            destination_writer.write_eof()
+        await destination_writer.drain()
         await _relay_response(destination_reader, client_writer)
     finally:
         destination_writer.close()

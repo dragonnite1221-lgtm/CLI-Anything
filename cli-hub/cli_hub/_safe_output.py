@@ -17,21 +17,21 @@ from typing import IO
 
 def safe_output_file(output_path: str) -> Path:
     """Resolve `output_path`, rejecting a pre-existing symlink whose real
-    target directory differs from the directory the caller asked to write
-    into.
+    target falls outside the directory the caller asked to write into.
 
-    Resolves via os.path.realpath and compares the real target's parent
-    directory against the (non-symlink-following) intended directory --
-    the directory portion of `output_path` itself. This is an early,
-    friendly check only: the file may not exist yet, so there is nothing to
-    resolve, and a symlink can still be planted afterward. Callers must
-    still open the final path with `open_safe_output` to close that race.
+    Resolves via os.path.realpath and checks that the real target is the
+    intended (non-symlink-following) directory itself or somewhere beneath
+    it -- e.g. preview.html -> rendered/preview.html is a valid, contained
+    redirect, not an escape. This is an early, friendly check only: the
+    file may not exist yet, so there is nothing to resolve, and a symlink
+    can still be planted afterward. Callers must still open the final path
+    with `open_safe_output` to close that race.
     """
     raw = Path(output_path).expanduser()
     intended_dir = raw.parent.resolve()
     if raw.is_symlink():
         real_target = Path(os.path.realpath(raw))
-        if real_target.parent != intended_dir:
+        if real_target != intended_dir and intended_dir not in real_target.parents:
             raise ValueError(
                 "Refusing to write preview output through a symlink that escapes "
                 f"the intended output directory: {raw} -> {real_target}"
@@ -40,13 +40,15 @@ def safe_output_file(output_path: str) -> Path:
     return intended_dir / raw.name
 
 
-# os.O_NOFOLLOW doesn't exist on native Windows (it does under WSL/Cygwin,
-# where os.name == "posix"). Where it's missing, fall back to an
-# immediately-before-open check: not atomic, so a narrower TOCTOU window
-# remains on that platform specifically, but it is still checked, and
-# creating filesystem symlinks on Windows normally requires elevated
-# privileges or Developer Mode in the first place.
+# os.O_NOFOLLOW/O_DIRECTORY and os.open(dir_fd=...) don't exist on native
+# Windows (they do under WSL/Cygwin, where os.name == "posix"). Where
+# they're missing, fall back to an immediately-before-open check: not
+# atomic, so a narrower TOCTOU window remains on that platform
+# specifically, but it is still checked, and creating filesystem symlinks
+# on Windows normally requires elevated privileges or Developer Mode.
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+_O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
+_SUPPORTS_DIR_FD = bool(_NOFOLLOW and _O_DIRECTORY) and os.open in os.supports_dir_fd
 
 # Match plain open(path, "w")'s default create mode (0o666, narrowed by the
 # process umask). os.open()'s own default is 0o777, which -- under a
@@ -54,17 +56,56 @@ _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 _CREATE_MODE = 0o666
 
 
+def _reraise_symlink_as_value_error(path: Path, error: OSError) -> None:
+    if error.errno == errno.ELOOP:
+        raise ValueError(f"Refusing to write preview output through a symlink: {path}") from error
+    raise error
+
+
 def open_safe_output(path: Path) -> IO[str]:
     """Open `path` for text writing, refusing to follow a symlink planted at
-    that exact location.
+    that exact location -- or, where supported, anywhere in its parent
+    chain -- after `safe_output_file` already checked it.
 
     `safe_output_file` only catches a symlink that already exists when it
     runs; the caller (HTML generation) can take a while after that check
-    before it actually writes. Opening with O_NOFOLLOW (where available)
-    makes the write itself atomic against a symlink appearing there in
-    between -- the kernel refuses the open outright instead of silently
-    following it.
+    before it actually writes. A bare O_NOFOLLOW open only guards the final
+    path component: another process could still swap out the *containing*
+    directory itself for a symlink, and a plain os.open(full_path, ...)
+    would re-resolve and follow it. Where dir_fd is supported, this opens
+    the parent directory by descriptor first and creates the leaf relative
+    to that descriptor with O_NOFOLLOW -- once the directory is open, its
+    fd stays pinned to that inode no matter what later gets linked at its
+    path, so a swap happening after this call starts can't redirect the
+    leaf creation. A swap completed *before* this call starts (i.e.
+    sometime during the HTML generation that runs between
+    `safe_output_file`'s check and this open) is not covered: closing that
+    fully would mean opening the directory once up front and holding it for
+    the whole render, which would need a larger restructuring of
+    render_html/render_live_html than this fix takes on. That residual
+    window requires an attacker with concurrent write access to the
+    directory's *parent*, at which point they already have unrestricted
+    access to everything this process could ever write anyway. Where
+    dir_fd isn't supported at all (native Windows), falls back to an
+    O_NOFOLLOW (or, lacking even that, an immediately-before-open check) on
+    the full path, which still closes the original, narrower "symlink at
+    the leaf" race.
     """
+    directory = os.path.dirname(os.fspath(path)) or "."
+    name = os.path.basename(os.fspath(path))
+
+    if _SUPPORTS_DIR_FD:
+        dir_fd = os.open(directory, os.O_RDONLY | _O_DIRECTORY)
+        try:
+            def _opener(_file: str, flags: int, _dir_fd: int = dir_fd) -> int:
+                return os.open(name, flags | _NOFOLLOW, _CREATE_MODE, dir_fd=_dir_fd)
+
+            try:
+                return open(path, "w", encoding="utf-8", opener=_opener)
+            except OSError as error:
+                _reraise_symlink_as_value_error(path, error)
+        finally:
+            os.close(dir_fd)
 
     def _opener(file: str, flags: int) -> int:
         if _NOFOLLOW:
@@ -76,6 +117,4 @@ def open_safe_output(path: Path) -> IO[str]:
     try:
         return open(path, "w", encoding="utf-8", opener=_opener)
     except OSError as error:
-        if error.errno == errno.ELOOP:
-            raise ValueError(f"Refusing to write preview output through a symlink: {path}") from error
-        raise
+        _reraise_symlink_as_value_error(path, error)

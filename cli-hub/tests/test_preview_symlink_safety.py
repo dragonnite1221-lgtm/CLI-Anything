@@ -11,9 +11,11 @@ the current user can write, anywhere on disk.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
-from cli_hub._safe_output import open_safe_output, safe_output_file
+from cli_hub._safe_output import _SUPPORTS_DIR_FD, open_safe_output, safe_output_file
 from cli_hub.preview import render_html, render_live_html
 from tests.test_cli_hub import _make_preview_bundle, _make_preview_session
 
@@ -38,6 +40,23 @@ def test_render_html_still_follows_symlink_within_same_directory(tmp_path):
     escape and should still resolve and render normally."""
     bundle_dir = _make_preview_bundle(tmp_path)
     real_output = bundle_dir / "actual-preview.html"
+    symlinked_output = bundle_dir / "preview.html"
+    real_output.touch()
+    symlinked_output.symlink_to(real_output)
+
+    rendered = render_html(str(bundle_dir), str(symlinked_output))
+
+    assert rendered == str(real_output.resolve())
+    assert real_output.read_text()
+
+
+def test_render_html_accepts_symlink_into_a_subdirectory(tmp_path):
+    """A symlink whose target is nested *beneath* the intended directory
+    (not just directly inside it) is still contained, not an escape."""
+    bundle_dir = _make_preview_bundle(tmp_path)
+    nested_dir = bundle_dir / "rendered"
+    nested_dir.mkdir()
+    real_output = nested_dir / "preview.html"
     symlinked_output = bundle_dir / "preview.html"
     real_output.touch()
     symlinked_output.symlink_to(real_output)
@@ -82,3 +101,40 @@ def test_open_safe_output_refuses_a_symlink_planted_after_the_check(tmp_path):
             fh.write("clobbered")
 
     assert victim.read_text() == "do-not-overwrite"
+
+
+@pytest.mark.skipif(not _SUPPORTS_DIR_FD, reason="dir_fd not supported on this platform")
+def test_open_safe_output_leaf_creation_is_pinned_to_the_opened_directory(tmp_path, monkeypatch):
+    """A bare O_NOFOLLOW open only guards the final path component: another
+    process could rename the containing directory elsewhere and put a
+    symlink to a decoy directory at its old pathname. Once
+    open_safe_output has opened the (real) directory by descriptor, the
+    leaf must still be created relative to that originally-opened
+    directory, unaffected by the pathname now pointing elsewhere --
+    verified here by performing that exact rename-and-relink from inside a
+    patched os.open, standing in for a concurrent attacker, timed to land
+    right after the directory descriptor is obtained but before the leaf
+    is created."""
+    real_dir = tmp_path / "bundle"
+    real_dir.mkdir()
+    moved_dir = tmp_path / "moved-away"
+    decoy_dir = tmp_path / "decoy"
+    decoy_dir.mkdir()
+    output_path = real_dir / "preview.html"
+    resolved = safe_output_file(str(output_path))
+
+    real_os_open = os.open
+
+    def _relocate_directory_then_open(path, *args, **kwargs):
+        if path == "preview.html" and "dir_fd" in kwargs:
+            real_dir.rename(moved_dir)
+            real_dir.symlink_to(decoy_dir)
+        return real_os_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "open", _relocate_directory_then_open)
+
+    with open_safe_output(resolved) as fh:
+        fh.write("hello")
+
+    assert (moved_dir / "preview.html").read_text() == "hello"
+    assert not (decoy_dir / "preview.html").exists()

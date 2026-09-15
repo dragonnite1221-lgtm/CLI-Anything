@@ -112,6 +112,20 @@ async def relay_http_request(
                 # received a partial status line/headers by that point, so
                 # papering over it and proceeding to send the body would
                 # corrupt the response framing rather than recover it.)
+                #
+                # Known accepted limitation: once this fires, destination_reader
+                # is no longer watched until _relay_response() below. If the
+                # destination's 100 Continue lands just after the grace window
+                # elapses, it sits unread and gets relayed ahead of the final
+                # response once the body finally goes through -- corrupting
+                # framing the same way a mid-response stall would, just later.
+                # Fully closing this means racing destination-response arrival
+                # against client-body arrival (two concurrently awaited reads)
+                # instead of committing to one side after the grace period, a
+                # meaningfully larger and riskier change for a case that needs
+                # an adversarial coincidence of timing to hit in practice
+                # (unlike the deadlock this relay fixes, which failed every
+                # single time). Left as a follow-up rather than taken on here.
                 send_body = True
         if send_body:
             if framing == "chunked":

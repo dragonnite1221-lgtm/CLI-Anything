@@ -50,13 +50,15 @@ _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 _O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 _SUPPORTS_DIR_FD = bool(_NOFOLLOW and _O_DIRECTORY) and os.open in os.supports_dir_fd
 
-# O_PATH (Linux) opens a directory purely for path resolution -- as the
-# dir_fd for a later openat() -- without requiring read permission on it,
-# unlike plain O_RDONLY. Without it (macOS, other POSIX), a write+execute
-# but non-readable "dropbox" directory (mode 0333) that plain open(path,
-# "w") could create files in would make this dir_fd open fail with EACCES;
-# O_PATH avoids that regression on the platform where it's available.
-_DIR_OPEN_FLAGS = getattr(os, "O_PATH", os.O_RDONLY) | _O_DIRECTORY
+# O_PATH (Linux) and O_SEARCH (POSIX.1-2008; some BSDs) both open a
+# directory purely for path resolution -- as the dir_fd for a later
+# openat() -- without requiring read permission on it, unlike plain
+# O_RDONLY. Without either (e.g. macOS, which defines neither), a
+# write+execute but non-readable "dropbox" directory (mode 0333) that
+# plain open(path, "w") could create files in would make this dir_fd open
+# fail with EACCES; try each in turn before falling back to the O_RDONLY
+# behavior this project already shipped.
+_DIR_OPEN_FLAGS = getattr(os, "O_PATH", getattr(os, "O_SEARCH", os.O_RDONLY)) | _O_DIRECTORY
 
 # Match plain open(path, "w")'s default create mode (0o666, narrowed by the
 # process umask). os.open()'s own default is 0o777, which -- under a

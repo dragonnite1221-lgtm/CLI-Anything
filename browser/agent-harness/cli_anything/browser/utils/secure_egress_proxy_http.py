@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import asyncio
 
+from cli_anything.browser.utils.secure_egress_proxy_continue import (
+    CONTINUE_GRACE_SECONDS,
+    NoInterimResponse,
+    expects_continue,
+    relay_interim_response,
+)
+
 
 def _body_framing(headers: list[str]) -> tuple[str, int]:
     lengths: list[int] = []
@@ -77,20 +84,63 @@ async def relay_http_request(
     destination_writer: asyncio.StreamWriter,
     headers: list[str],
     timeout_seconds: int,
+    version: str = "HTTP/1.1",
 ) -> None:
     """Forward exactly one framed HTTP request, then close the client connection."""
 
     try:
         framing, length = _body_framing(headers)
-        if framing == "chunked":
-            await _forward_chunked_body(client_reader, destination_writer, timeout_seconds)
-        elif length:
-            remaining = length
-            while remaining:
-                chunk = await _read_exact(client_reader, min(remaining, 64 * 1024), timeout_seconds)
-                destination_writer.write(chunk)
-                await destination_writer.drain()
-                remaining -= len(chunk)
+        send_body = True
+        # RFC 9110 10.1.1: a server MUST ignore Expect: 100-continue on an
+        # HTTP/1.0 request. A destination speaking HTTP/1.0 will never send
+        # the interim response, so waiting for one here would deadlock
+        # exactly like the bug this relay exists to fix.
+        if version == "HTTP/1.1" and expects_continue(headers):
+            grace = min(timeout_seconds, CONTINUE_GRACE_SECONDS)
+            try:
+                send_body = await relay_interim_response(
+                    destination_reader, client_writer, grace, timeout_seconds
+                )
+            except NoInterimResponse:
+                # No response started arriving at all within the grace
+                # period. RFC 9110 10.1.1 explicitly allows the destination
+                # to skip the interim response and read the body directly,
+                # so -- like a real client would -- stop waiting and send
+                # it. (A stall partway through an already-started response
+                # instead raises a plain asyncio.TimeoutError here, which
+                # is deliberately NOT caught: the client has already
+                # received a partial status line/headers by that point, so
+                # papering over it and proceeding to send the body would
+                # corrupt the response framing rather than recover it.)
+                #
+                # Known accepted limitation: once this fires, destination_reader
+                # is no longer watched until _relay_response() below. If the
+                # destination's 100 Continue lands just after the grace window
+                # elapses, it sits unread and gets relayed ahead of the final
+                # response once the body finally goes through -- corrupting
+                # framing the same way a mid-response stall would, just later.
+                # Fully closing this means racing destination-response arrival
+                # against client-body arrival (two concurrently awaited reads)
+                # instead of committing to one side after the grace period, a
+                # meaningfully larger and riskier change for a case that needs
+                # an adversarial coincidence of timing to hit in practice
+                # (unlike the deadlock this relay fixes, which failed every
+                # single time). Left as a follow-up rather than taken on here.
+                send_body = True
+        if send_body:
+            if framing == "chunked":
+                await _forward_chunked_body(client_reader, destination_writer, timeout_seconds)
+            elif length:
+                remaining = length
+                while remaining:
+                    chunk = await _read_exact(client_reader, min(remaining, 64 * 1024), timeout_seconds)
+                    destination_writer.write(chunk)
+                    await destination_writer.drain()
+                    remaining -= len(chunk)
+        # Whether or not a body was sent, the request side of this exchange
+        # is finished: a destination that only accepts the request after
+        # seeing our half of the stream close must still see that EOF, even
+        # when it rejected the body outright.
         if destination_writer.can_write_eof():
             destination_writer.write_eof()
         await destination_writer.drain()

@@ -6,6 +6,7 @@ import shlex
 
 import click
 
+from cli_anything.browser import __version__
 from cli_anything.browser.utils.repl_skin import ReplSkin
 
 
@@ -28,7 +29,7 @@ def register_repl_command(root, get_session, is_json_output, set_repl_mode):
         """Start an interactive REPL session."""
 
         set_repl_mode(True)
-        skin = ReplSkin("browser", version="1.0.0")
+        skin = ReplSkin("browser", version=__version__)
         skin.print_banner()
         prompt_session = skin.create_prompt_session()
         try:

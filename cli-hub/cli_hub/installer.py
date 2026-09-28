@@ -1,10 +1,12 @@
 """Install, uninstall, and manage CLIs — dispatches to pip or npm based on source."""
 
 import json
+import os
 import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from cli_hub._command_policy import (
@@ -20,16 +22,24 @@ INSTALLED_FILE = Path.home() / ".cli-hub" / "installed.json"
 
 def _load_installed():
     if INSTALLED_FILE.exists():
-        try:
-            return json.loads(INSTALLED_FILE.read_text())
-        except json.JSONDecodeError:
-            pass
+        return json.loads(INSTALLED_FILE.read_text())
     return {}
 
 
 def _save_installed(data):
     INSTALLED_FILE.parent.mkdir(parents=True, exist_ok=True)
-    INSTALLED_FILE.write_text(json.dumps(data, indent=2))
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=INSTALLED_FILE.parent,
+                                         prefix=f".{INSTALLED_FILE.name}.", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(json.dumps(data, indent=2))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, INSTALLED_FILE)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def _update_installed(name, entry):

@@ -16,6 +16,8 @@ import threading
 import time
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from cli_hub import installer
 from cli_hub.installer import install_cli
 
@@ -89,3 +91,23 @@ def test_concurrent_installs_do_not_lose_state(tmp_path):
         "concurrent installs lost an update to installed.json: "
         f"expected both cli-a and cli-b, got {sorted(final_state.keys())}"
     )
+
+
+def test_failed_replace_preserves_previous_install_state(tmp_path):
+    installed_file = tmp_path / "installed.json"
+    installed_file.write_text('{"cli-a": {"version": "1.0.0"}}')
+    with patch.object(installer, "INSTALLED_FILE", installed_file), \
+            patch.object(installer.os, "replace", side_effect=OSError("interrupted")):
+        with pytest.raises(OSError, match="interrupted"):
+            installer._update_installed("cli-b", {"version": "1.0.0"})
+    assert json.loads(installed_file.read_text()) == {"cli-a": {"version": "1.0.0"}}
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["installed.json", "installed.json.lock"]
+
+
+def test_malformed_install_state_is_not_overwritten(tmp_path):
+    installed_file = tmp_path / "installed.json"
+    installed_file.write_text("{incomplete")
+    with patch.object(installer, "INSTALLED_FILE", installed_file):
+        with pytest.raises(json.JSONDecodeError):
+            installer._update_installed("cli-b", {"version": "1.0.0"})
+    assert installed_file.read_text() == "{incomplete"

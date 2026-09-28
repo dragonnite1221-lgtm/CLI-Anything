@@ -1,14 +1,13 @@
 """Install, uninstall, and manage CLIs — dispatches to pip or npm based on source."""
 
 import json
-import os
 import shlex
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
+from cli_hub._atomic_json import write_json_atomically
 from cli_hub._command_policy import (
     RegistryCommandRejected,
     registry_command_argv,
@@ -27,19 +26,7 @@ def _load_installed():
 
 
 def _save_installed(data):
-    INSTALLED_FILE.parent.mkdir(parents=True, exist_ok=True)
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=INSTALLED_FILE.parent,
-                                         prefix=f".{INSTALLED_FILE.name}.", delete=False) as stream:
-            temporary = Path(stream.name)
-            stream.write(json.dumps(data, indent=2))
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, INSTALLED_FILE)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
+    write_json_atomically(INSTALLED_FILE, data)
 
 
 def _update_installed(name, entry):

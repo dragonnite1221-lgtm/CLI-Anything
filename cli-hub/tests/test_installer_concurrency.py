@@ -18,7 +18,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cli_hub import installer
+from cli_hub import _atomic_json, installer
 from cli_hub.installer import install_cli
 
 CLI_A = {
@@ -97,7 +97,7 @@ def test_failed_replace_preserves_previous_install_state(tmp_path):
     installed_file = tmp_path / "installed.json"
     installed_file.write_text('{"cli-a": {"version": "1.0.0"}}')
     with patch.object(installer, "INSTALLED_FILE", installed_file), \
-            patch.object(installer.os, "replace", side_effect=OSError("interrupted")):
+            patch.object(_atomic_json.os, "replace", side_effect=OSError("interrupted")):
         with pytest.raises(OSError, match="interrupted"):
             installer._update_installed("cli-b", {"version": "1.0.0"})
     assert json.loads(installed_file.read_text()) == {"cli-a": {"version": "1.0.0"}}

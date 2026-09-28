@@ -1838,6 +1838,33 @@ def render_live_html(session_ref: str, output_path: str, poll_ms: int = 1500) ->
 class _NoCacheHandler(SimpleHTTPRequestHandler):
     """Serve preview assets without cache so live sessions refresh correctly."""
 
+    def __init__(self, *args: Any, allowed_bundle: Optional[Path] = None, **kwargs: Any) -> None:
+        self._root = Path(kwargs.get("directory") or os.getcwd()).resolve()
+        self._allowed_bundle = allowed_bundle
+        self._resolved_path: Optional[Path] = None
+        super().__init__(*args, **kwargs)
+
+    def send_head(self):
+        try:
+            candidate = Path(super().translate_path(self.path)).resolve()
+        except (OSError, RuntimeError):
+            self.send_error(403, "Preview path is not available")
+            return None
+        if not (candidate.is_relative_to(self._root) or
+                (self._allowed_bundle is not None and candidate.is_relative_to(self._allowed_bundle))):
+            self.send_error(403, "Preview path is outside the session")
+            return None
+        self._resolved_path = candidate
+        try:
+            return super().send_head()
+        finally:
+            self._resolved_path = None
+
+    def translate_path(self, path: str) -> str:
+        if self._resolved_path is not None:
+            return str(self._resolved_path)
+        return super().translate_path(path)
+
     def end_headers(self) -> None:
         self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
         self.send_header("Pragma", "no-cache")
@@ -1850,7 +1877,16 @@ class _NoCacheHandler(SimpleHTTPRequestHandler):
 
 def start_static_server(directory: str, host: str = "127.0.0.1", port: int = 0) -> Tuple[ThreadingHTTPServer, str]:
     root = Path(directory).expanduser().resolve()
-    handler = functools.partial(_NoCacheHandler, directory=str(root))
+    allowed_bundle = None
+    current = root / "current"
+    if (root / "session.json").is_file() and current.is_symlink():
+        try:
+            bundle = current.resolve(strict=True)
+            if bundle.is_dir() and (bundle / "manifest.json").is_file():
+                allowed_bundle = bundle
+        except (OSError, RuntimeError):
+            pass
+    handler = functools.partial(_NoCacheHandler, directory=str(root), allowed_bundle=allowed_bundle)
     server = ThreadingHTTPServer((host, int(port)), handler)
     base_url = f"http://{host}:{server.server_port}"
     return server, base_url

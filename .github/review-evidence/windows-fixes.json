@@ -20,76 +20,54 @@
     "claude-opus-4-6-thinking",
     "gpt-oss-120b-medium"
   ],
-  "baseline": "94784ad2266194836b2090a6ea195c9accc8ea53",
-  "reviewed_fix_head": "135cea0b8c0e1743eec5406f8f2e2b01830108a9",
-  "reviewed_tree": "d13d99f39ad77dbc53edf286d68334b9670ad631",
+  "catalog_observed_at_utc": "2026-09-30T23:25:19.728166+00:00",
+  "baseline": "c82447574f3f1a6b2b9ffcb00ebeb3baf6e77b60",
+  "reviewed_fix_head": "cd894e0cfa8a4169392c3f8735375171a1c80699",
+  "reviewed_tree": "0d0ae66a342e4dacfd04e3f8ecd4acabdcee22b5",
   "review_result": {
-    "reviewed_head": "135cea0b8c0e1743eec5406f8f2e2b01830108a9",
+    "reviewed_head": "cd894e0cfa8a4169392c3f8735375171a1c80699",
     "findings": [],
-    "verdict": "PASS",
+    "verdict": "APPROVE",
     "coverage_limits": [
-      "Maintainer attestation boundary: Evidence serves as a tamper-evident maintainer attestation bound to git commit 135cea0b8c0e1743eec5406f8f2e2b01830108a9 and tree d13d99f39ad77dbc53edf286d68334b9670ad631; it does not provide cryptographic reviewer identity verification or independent runner-level enforcement against PR-controlled validator modifications.",
-      "Platform privilege variance: Symlink creation on Windows without SeCreateSymbolicLinkPrivilege (WinError 1314) and POSIX dir_fd operations are gracefully skipped via tests/_symlinks.py (124 passed, 8 skipped on Windows), while all 132 tests pass unconditionally on Linux (132 passed, 0 skipped).",
-      "Live preview testing contract: Live session HTML generation (render_live_html) renders a client-side JavaScript polling container (fetchJson(`${CURRENT_LINK}/manifest.json`)) rather than static server-side artifact labels. Contract testing properly verifies symlink filesystem traversal, payload byte integrity, manifest JSON contents, and the JavaScript polling structure.",
-      "Snapshot patch scope: Combined review strictly covers the 11 modified and added files across source fixes, portability tests, review policy, validation scripts, and GitHub workflow relative to baseline 94784ad2266194836b2090a6ea195c9accc8ea53. Only .github/review-evidence/windows-fixes.json may be added or modified in subsequent commits.",
-      "Baseline dependency: Validation requires baseline commit 94784ad2266194836b2090a6ea195c9accc8ea53 to match the PR base commit (EXPECTED_REVIEW_BASE); rebases or base branch updates necessitate a fresh review."
+      "UNC share-root argument normalization (`anchor.rstrip('\\\\')`) addresses syntactic argument formatting only; live network filesystem semantics, security under SMB/DFS/redirectors, and handle-relative NtCreateFile traversal over network shares remain unverified.",
+      "Hardlink verification (`links == 1`) remains a point-in-time check; subsequent hardlinks created elsewhere cannot redirect the already-opened handle but are not blocked by Windows share flags.",
+      "All reparse-bearing components (directory junctions, symlinks, volume mount points, cloud placeholders, App Execution Aliases) are rejected by design as a compatibility and security tradeoff.",
+      "Alternate data streams (`:`), Win32 device namespaces (`\\\\.\\`, `\\\\?\\`), and trailing dot/space components are rejected.",
+      "Preview file creation and truncation are non-transactional: failures during initialization or writes do not roll back created or truncated files.",
+      "Privileged symlink creation requiring `SeCreateSymbolicLinkPrivilege` (WinError 1314) was skipped; native NTFS junction, hardlink, handle locking, and relative-open behavior were natively verified.",
+      "The existing POSIX branch remains unchanged with its documented residual parent-swap TOCTOU window."
     ]
   },
-  "conversation_id": "3e2564a8-0b22-461d-9091-d75cff13c86d",
-  "review_scope": "Combined source/tests and unchanged workflow/validator/policy review; resumed same orchestration conversation with full source/test diff and live-render contract context.",
+  "conversation_id": "89686d5b-387d-464c-b703-415196382ee6",
+  "result_capture": "review-updated-output.jsonl",
+  "review_scope": "Complete native Windows safe-output helper/caller/test diff and necessary existing contract context only.",
+  "packet_sha256": "0ee041d83b38ec7b21443e4fa3bcf1a5a46043339f44efa8325d8dbbb13693ed",
+  "original_packet_sha256": "1c80964cf3986ae26362fb5cb55fb5a9439d83a1927d9ea2acaa7abaa8f0d827",
+  "initial_attempt": "Timed out with empty partial response; not treated as approval. Same conversation resumed to obtain this genuine result.",
   "reviewed_files": {
-    ".github/LOCAL_AI_REVIEW.md": "4c39cf637eb82b5621b8c7cb85c4c44eb1c196d620df3f40c7780342f5c38858",
-    ".github/ai-review-policy.json": "6b06928e66b4456d8c4dc490e801bf5d4fa8f0b45cc5c4ba728db1bd8ba97e7b",
-    ".github/scripts/test_validate_local_ai_review.py": "62a1249477cb6a7c6f1ea73650aee7ee519da11c82ec03a839fd2ceb5acc4540",
-    ".github/scripts/validate-local-ai-review.py": "d79754f3da71a27293a1d62329514489e9566c8b97481c3bbe97cd3ef265a509",
-    ".github/workflows/claude.yml": "fcaf7520588d3bd278a1de552ab4c121802b48472d5d47cf9fe5d0d2e17d941a",
-    "cli-hub/cli_hub/preview.py": "e94dfe6599ae40572cf8981cecf3510f6339e5eecf4e9eddfdaca3cb1cb18352",
-    "cli-hub/setup.py": "be038f889684123abac86ddb1e957cf3020bb72da377470774d93ce9c601be2f",
-    "cli-hub/tests/_symlinks.py": "93844ec64e6d7cd4ef31c07ade9ef6080eb07f31b9102b42a33264b0e217e9a6",
-    "cli-hub/tests/test_cli_hub.py": "6e0478de5330191323ea632c774a7a0b19d95a5e98e4f5d150b8f328c951b6e1",
-    "cli-hub/tests/test_preview_symlink_safety.py": "53de55b3aca25a96766c8124048925b9aa6e06aa0a318f523cfff842276f988d",
-    "cli-hub/tests/test_windows_portability.py": "9b8094df39355c9e392c4378e7e1c19c3544b344e62d5170722a28ed56d99c52"
+    "cli-hub/cli_hub/_safe_output.py": "cfa891f9d8c1c0cdbb92523bf46f5d1f6e69c06ab0cf44bf96dbb173d34070c3",
+    "cli-hub/cli_hub/_win_file_api.py": "6e66d4b7addf0ad3eedd12f877afba09889ecb19b95916620cefda4b13e864d4",
+    "cli-hub/cli_hub/_win_safe_output.py": "ee1feaf8fcd18b8374fa842f789ce6ce13d7c6b007df08a6c78baf660e75650e",
+    "cli-hub/tests/_windows_reparse.py": "6299247a59e59a1845bee33ac60cc0f16861301f08e7fa8184fa82f22f923b50",
+    "cli-hub/tests/test_windows_root_anchor.py": "251272493cc7be20382cb820799be3d86dd0bacb6cfa82c0136db1201df44382",
+    "cli-hub/tests/test_windows_safe_output.py": "01564ac75fd3d9123d23a1ebe272f18977603a6b634fff3e074bc7f5d13d650d"
   },
-  "trust_limit": "Maintainer-recorded attestation; not independently authenticated AI output. PR-controlled validator cannot prevent malicious fabrication.",
-  "evidence_only_followup": "Only this JSON is added after the reviewed snapshot; it was not represented as part of the old source-only review.",
-  "authoritative_windows_skip_counts": {
-    "symlink_privilege": 6,
-    "dir_fd": 2,
-    "note": "Original reviewer described 7/1; executed suite establishes 6/2. Raw result retained unchanged."
-  },
-  "prior_source_review_superseded_by_combined_review": {
-    "confirmed_model": "gemini-3.8-flash-high",
-    "conversation_id": "bed7626a-d388-4af8-8a9d-368f6050013f",
-    "result": {
-      "reviewed_head": "f862005fd055771a7e6c425bb7db7457656213e4",
-      "findings": [],
-      "verdict": "PASS",
-      "coverage_limits": [
-        {
-          "platform": "windows-native",
-          "category": "symlink_privilege",
-          "skipped_tests_count": 7,
-          "description": "Native Windows environments without Developer Mode or elevated privileges raise WinError 1314 (ERROR_PRIVILEGE_NOT_HELD) upon creating file or directory symlinks. Tests in test_preview_symlink_safety.py and test_windows_portability.py (such as test_render_html_rejects_symlinked_output_escaping_directory, test_render_html_still_follows_symlink_within_same_directory, test_render_html_accepts_symlink_into_a_subdirectory, test_render_live_html_rejects_symlinked_output_escaping_directory, test_open_safe_output_refuses_a_symlink_planted_after_the_check, and test_session_current_directory_symlink) skip gracefully via tests._symlinks.symlink_to. These skipped tests represent coverage gaps on unprivileged Windows systems."
-        },
-        {
-          "platform": "windows-native",
-          "category": "dir_fd_unsupported",
-          "skipped_tests_count": 1,
-          "description": "Native Windows lacks POSIX directory file descriptor support (neither os.O_NOFOLLOW combined with os.O_DIRECTORY nor dir_fd in os.open are supported, setting _SUPPORTS_DIR_FD to False). Consequently, test_open_safe_output_leaf_creation_is_pinned_to_the_opened_directory cannot execute on native Windows and is skipped, leaving directory descriptor-pinned leaf creation untested on Win32."
-        }
-      ]
-    }
-  },
-  "result_capture": "cli-hub-final-refresh-output.jsonl",
-  "test_evidence": {
-    "windows": {
-      "passed": 124,
+  "tests": {
+    "native_windows": {
+      "head": "cd894e0cfa8a4169392c3f8735375171a1c80699",
+      "collected": 148,
+      "passed": 140,
       "skipped": 8
     },
-    "linux_real_symlinks": {
+    "linux_previous_snapshot": {
+      "head": "bc64c2ef6a5f174435f554cf9ccf5660bd35e097",
+      "collected": 145,
       "passed": 132,
-      "skipped": 0
+      "skipped": 13
     },
-    "browser_execution": "Not covered by this filesystem and HTML contract test."
-  }
+    "linux_current_attempt": "WSL CreateInstance/E_FAIL before tests started; current Linux results pending hosted CI",
+    "offline_attestation_regressions": 15
+  },
+  "trust_limit": "Maintainer-recorded local review attestation, not independent cryptographic authentication of AI identity. Hosted job validates this record and does not invoke a model.",
+  "activation_status": "Candidate is not installed; parent owns merge and later deployment."
 }

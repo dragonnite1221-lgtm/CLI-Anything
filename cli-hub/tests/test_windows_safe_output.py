@@ -171,3 +171,19 @@ def test_native_rejects_parent_converted_to_junction_while_held(tmp_path, monkey
     assert error.value.winerror == 1921  # ERROR_CANT_RESOLVE_FILENAME, fail closed.
     assert victim.read_text() == 'preserve'
     assert list(parent.iterdir()) == []
+
+
+def test_native_descriptor_is_explicitly_noninheritable(tmp_path, monkeypatch):
+    from cli_hub import _win_safe_output as writer
+    transfer = writer.msvcrt.open_osfhandle
+    flags_seen = []
+
+    def record_transfer(handle, flags):
+        flags_seen.append(flags)
+        return transfer(handle, flags)
+
+    monkeypatch.setattr(writer.msvcrt, 'open_osfhandle', record_transfer)
+    with open_safe_output(tmp_path / 'preview.html') as output:
+        assert not os.get_inheritable(output.fileno())
+        output.write('safe')
+    assert len(flags_seen) == 1 and flags_seen[0] & os.O_NOINHERIT

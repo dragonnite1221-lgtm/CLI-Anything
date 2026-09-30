@@ -29,7 +29,7 @@ def open_windows_output(path):
             stack.callback(api.close, parent)
         handle = api.open_relative(parent, parts[-1], leaf=True)
         try:
-            fd = msvcrt.open_osfhandle(handle, os.O_WRONLY | os.O_BINARY)
+            fd = msvcrt.open_osfhandle(handle, os.O_WRONLY | os.O_BINARY | os.O_NOINHERIT)
         except BaseException:
             api.close(handle)
             raise

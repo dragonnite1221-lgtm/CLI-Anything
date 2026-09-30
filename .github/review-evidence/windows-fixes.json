@@ -21,23 +21,43 @@
     "gpt-oss-120b-medium"
   ],
   "baseline": "94784ad2266194836b2090a6ea195c9accc8ea53",
-  "reviewed_fix_head": "b53c2ec67aab167dbb7d28fdaef528bb2c9774aa",
-  "reviewed_tree": "51af77f3d8cdbb3e919979c630528f621bdafb95",
+  "reviewed_fix_head": "135cea0b8c0e1743eec5406f8f2e2b01830108a9",
+  "reviewed_tree": "d13d99f39ad77dbc53edf286d68334b9670ad631",
   "review_result": {
-    "reviewed_head": "b53c2ec67aab167dbb7d28fdaef528bb2c9774aa",
+    "reviewed_head": "135cea0b8c0e1743eec5406f8f2e2b01830108a9",
     "findings": [],
     "verdict": "PASS",
     "coverage_limits": [
-      "Maintainer attestation boundary: Validation verifies recorded evidence against git tree, commit, and file hashes rather than providing cryptographic reviewer authentication or hosted AI verification. It cannot prevent malicious edits to PR-controlled check scripts without independent maintainer review or branch protection.",
-      "File deletion behavior: validate-local-ai-review.py performs individual blob hash checks using git show HEAD:{name}. Deletions are securely bound by the reviewed_tree hash, but individual blob checks require all reviewed paths to exist in HEAD.",
-      "File mode verification: Mode changes (e.g., chmod +x) are bound cryptographically at the tree level via reviewed_tree rather than via the per-file sha256 content digests.",
-      "Baseline pinning: Baseline commit is strictly bound to the PR base (EXPECTED_REVIEW_BASE); any rebase or target branch update invalidates evidence and requires a fresh review.",
-      "Exclusion of evidence self-reference: The evidence path (.github/review-evidence/windows-fixes.json) is explicitly excluded from the pre-snapshot diff and is the only permitted file modification between reviewed_head and HEAD."
+      "Maintainer attestation boundary: Evidence serves as a tamper-evident maintainer attestation bound to git commit 135cea0b8c0e1743eec5406f8f2e2b01830108a9 and tree d13d99f39ad77dbc53edf286d68334b9670ad631; it does not provide cryptographic reviewer identity verification or independent runner-level enforcement against PR-controlled validator modifications.",
+      "Platform privilege variance: Symlink creation on Windows without SeCreateSymbolicLinkPrivilege (WinError 1314) and POSIX dir_fd operations are gracefully skipped via tests/_symlinks.py (124 passed, 8 skipped on Windows), while all 132 tests pass unconditionally on Linux (132 passed, 0 skipped).",
+      "Live preview testing contract: Live session HTML generation (render_live_html) renders a client-side JavaScript polling container (fetchJson(`${CURRENT_LINK}/manifest.json`)) rather than static server-side artifact labels. Contract testing properly verifies symlink filesystem traversal, payload byte integrity, manifest JSON contents, and the JavaScript polling structure.",
+      "Snapshot patch scope: Combined review strictly covers the 11 modified and added files across source fixes, portability tests, review policy, validation scripts, and GitHub workflow relative to baseline 94784ad2266194836b2090a6ea195c9accc8ea53. Only .github/review-evidence/windows-fixes.json may be added or modified in subsequent commits.",
+      "Baseline dependency: Validation requires baseline commit 94784ad2266194836b2090a6ea195c9accc8ea53 to match the PR base commit (EXPECTED_REVIEW_BASE); rebases or base branch updates necessitate a fresh review."
     ]
   },
   "conversation_id": "3e2564a8-0b22-461d-9091-d75cff13c86d",
-  "review_scope": "Workflow, validator, policy and evidence design at snapshot; unchanged Windows source fixes covered by separate source_review below.",
-  "source_review": {
+  "review_scope": "Combined source/tests and unchanged workflow/validator/policy review; resumed same orchestration conversation with full source/test diff and live-render contract context.",
+  "reviewed_files": {
+    ".github/LOCAL_AI_REVIEW.md": "4c39cf637eb82b5621b8c7cb85c4c44eb1c196d620df3f40c7780342f5c38858",
+    ".github/ai-review-policy.json": "6b06928e66b4456d8c4dc490e801bf5d4fa8f0b45cc5c4ba728db1bd8ba97e7b",
+    ".github/scripts/test_validate_local_ai_review.py": "62a1249477cb6a7c6f1ea73650aee7ee519da11c82ec03a839fd2ceb5acc4540",
+    ".github/scripts/validate-local-ai-review.py": "d79754f3da71a27293a1d62329514489e9566c8b97481c3bbe97cd3ef265a509",
+    ".github/workflows/claude.yml": "fcaf7520588d3bd278a1de552ab4c121802b48472d5d47cf9fe5d0d2e17d941a",
+    "cli-hub/cli_hub/preview.py": "e94dfe6599ae40572cf8981cecf3510f6339e5eecf4e9eddfdaca3cb1cb18352",
+    "cli-hub/setup.py": "be038f889684123abac86ddb1e957cf3020bb72da377470774d93ce9c601be2f",
+    "cli-hub/tests/_symlinks.py": "93844ec64e6d7cd4ef31c07ade9ef6080eb07f31b9102b42a33264b0e217e9a6",
+    "cli-hub/tests/test_cli_hub.py": "6e0478de5330191323ea632c774a7a0b19d95a5e98e4f5d150b8f328c951b6e1",
+    "cli-hub/tests/test_preview_symlink_safety.py": "53de55b3aca25a96766c8124048925b9aa6e06aa0a318f523cfff842276f988d",
+    "cli-hub/tests/test_windows_portability.py": "9b8094df39355c9e392c4378e7e1c19c3544b344e62d5170722a28ed56d99c52"
+  },
+  "trust_limit": "Maintainer-recorded attestation; not independently authenticated AI output. PR-controlled validator cannot prevent malicious fabrication.",
+  "evidence_only_followup": "Only this JSON is added after the reviewed snapshot; it was not represented as part of the old source-only review.",
+  "authoritative_windows_skip_counts": {
+    "symlink_privilege": 6,
+    "dir_fd": 2,
+    "note": "Original reviewer described 7/1; executed suite establishes 6/2. Raw result retained unchanged."
+  },
+  "prior_source_review_superseded_by_combined_review": {
     "confirmed_model": "gemini-3.8-flash-high",
     "conversation_id": "bed7626a-d388-4af8-8a9d-368f6050013f",
     "result": {
@@ -60,24 +80,16 @@
       ]
     }
   },
-  "reviewed_files": {
-    ".github/LOCAL_AI_REVIEW.md": "4c39cf637eb82b5621b8c7cb85c4c44eb1c196d620df3f40c7780342f5c38858",
-    ".github/ai-review-policy.json": "6b06928e66b4456d8c4dc490e801bf5d4fa8f0b45cc5c4ba728db1bd8ba97e7b",
-    ".github/scripts/test_validate_local_ai_review.py": "62a1249477cb6a7c6f1ea73650aee7ee519da11c82ec03a839fd2ceb5acc4540",
-    ".github/scripts/validate-local-ai-review.py": "d79754f3da71a27293a1d62329514489e9566c8b97481c3bbe97cd3ef265a509",
-    ".github/workflows/claude.yml": "fcaf7520588d3bd278a1de552ab4c121802b48472d5d47cf9fe5d0d2e17d941a",
-    "cli-hub/cli_hub/preview.py": "e94dfe6599ae40572cf8981cecf3510f6339e5eecf4e9eddfdaca3cb1cb18352",
-    "cli-hub/setup.py": "be038f889684123abac86ddb1e957cf3020bb72da377470774d93ce9c601be2f",
-    "cli-hub/tests/_symlinks.py": "93844ec64e6d7cd4ef31c07ade9ef6080eb07f31b9102b42a33264b0e217e9a6",
-    "cli-hub/tests/test_cli_hub.py": "6e0478de5330191323ea632c774a7a0b19d95a5e98e4f5d150b8f328c951b6e1",
-    "cli-hub/tests/test_preview_symlink_safety.py": "53de55b3aca25a96766c8124048925b9aa6e06aa0a318f523cfff842276f988d",
-    "cli-hub/tests/test_windows_portability.py": "a4ff5c6b2152e446cf06678ac2153e4832c84be3774e67ed2e4169f4021752ed"
-  },
-  "trust_limit": "Maintainer-recorded attestation; not independently authenticated AI output. PR-controlled validator cannot prevent malicious fabrication.",
-  "evidence_only_followup": "Only this JSON is added after the reviewed snapshot; it was not represented as part of the old source-only review.",
-  "authoritative_windows_skip_counts": {
-    "symlink_privilege": 6,
-    "dir_fd": 2,
-    "note": "Original reviewer described 7/1; executed suite establishes 6/2. Raw result retained unchanged."
+  "result_capture": "cli-hub-final-refresh-output.jsonl",
+  "test_evidence": {
+    "windows": {
+      "passed": 124,
+      "skipped": 8
+    },
+    "linux_real_symlinks": {
+      "passed": 132,
+      "skipped": 0
+    },
+    "browser_execution": "Not covered by this filesystem and HTML contract test."
   }
 }

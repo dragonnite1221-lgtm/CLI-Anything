@@ -147,3 +147,27 @@ def test_native_failed_descriptor_setup_releases_handle(tmp_path, monkeypatch, s
         open_safe_output(path)
     assert path.read_text() == 'preserve'
     path.rename(tmp_path / 'moved.html')
+
+
+def test_native_rejects_parent_converted_to_junction_while_held(tmp_path, monkeypatch):
+    from cli_hub import _win_file_api as api
+    from tests._windows_reparse import junction_in_place
+    parent, decoy = tmp_path / 'bundle', tmp_path / 'decoy'
+    parent.mkdir()
+    decoy.mkdir()
+    victim = decoy / 'preview.html'
+    victim.write_text('preserve')
+    real_open = api.open_relative
+
+    def convert_parent(handle, name, *, leaf=False):
+        if leaf:
+            with junction_in_place(parent, decoy):
+                return real_open(handle, name, leaf=True)
+        return real_open(handle, name, leaf=False)
+
+    monkeypatch.setattr(api, 'open_relative', convert_parent)
+    with pytest.raises(OSError) as error:
+        open_safe_output(parent / 'preview.html')
+    assert error.value.winerror == 1921  # ERROR_CANT_RESOLVE_FILENAME, fail closed.
+    assert victim.read_text() == 'preserve'
+    assert list(parent.iterdir()) == []

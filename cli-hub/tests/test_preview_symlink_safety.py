@@ -17,6 +17,7 @@ import pytest
 
 from cli_hub._safe_output import _SUPPORTS_DIR_FD, open_safe_output, safe_output_file
 from cli_hub.preview import render_html, render_live_html
+from tests._symlinks import symlink_to
 from tests.test_cli_hub import _make_preview_bundle, _make_preview_session
 
 
@@ -27,7 +28,7 @@ def test_render_html_rejects_symlinked_output_escaping_directory(tmp_path):
     victim.write_text("do-not-overwrite")
 
     output_path = bundle_dir / "preview.html"
-    output_path.symlink_to(victim)
+    symlink_to(output_path, victim)
 
     with pytest.raises(ValueError, match="symlink"):
         render_html(str(bundle_dir), str(output_path))
@@ -42,7 +43,7 @@ def test_render_html_still_follows_symlink_within_same_directory(tmp_path):
     real_output = bundle_dir / "actual-preview.html"
     symlinked_output = bundle_dir / "preview.html"
     real_output.touch()
-    symlinked_output.symlink_to(real_output)
+    symlink_to(symlinked_output, real_output)
 
     rendered = render_html(str(bundle_dir), str(symlinked_output))
 
@@ -59,7 +60,7 @@ def test_render_html_accepts_symlink_into_a_subdirectory(tmp_path):
     real_output = nested_dir / "preview.html"
     symlinked_output = bundle_dir / "preview.html"
     real_output.touch()
-    symlinked_output.symlink_to(real_output)
+    symlink_to(symlinked_output, real_output)
 
     rendered = render_html(str(bundle_dir), str(symlinked_output))
 
@@ -74,7 +75,7 @@ def test_render_live_html_rejects_symlinked_output_escaping_directory(tmp_path):
     victim.write_text("do-not-overwrite")
 
     output_path = session_dir / "live.html"
-    output_path.symlink_to(victim)
+    symlink_to(output_path, victim)
 
     with pytest.raises(ValueError, match="symlink"):
         render_live_html(str(session_dir), str(output_path), poll_ms=800)
@@ -94,7 +95,7 @@ def test_open_safe_output_refuses_a_symlink_planted_after_the_check(tmp_path):
 
     victim = tmp_path / "victim.txt"
     victim.write_text("do-not-overwrite")
-    resolved.symlink_to(victim)  # attacker plants the symlink after the check
+    symlink_to(resolved, victim)  # attacker plants the symlink after the check
 
     with pytest.raises(ValueError, match="symlink"):
         with open_safe_output(resolved) as fh:
@@ -128,7 +129,7 @@ def test_open_safe_output_leaf_creation_is_pinned_to_the_opened_directory(tmp_pa
     def _relocate_directory_then_open(path, *args, **kwargs):
         if path == "preview.html" and "dir_fd" in kwargs:
             real_dir.rename(moved_dir)
-            real_dir.symlink_to(decoy_dir)
+            symlink_to(real_dir, decoy_dir, target_is_directory=True)
         return real_os_open(path, *args, **kwargs)
 
     monkeypatch.setattr(os, "open", _relocate_directory_then_open)

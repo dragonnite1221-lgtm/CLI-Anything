@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -169,7 +170,10 @@ def _make_preview_session(tmp_path: Path, *, with_trajectory: bool = False) -> P
     bundle_dir = _make_preview_bundle(tmp_path)
     session_dir = tmp_path / "live-session"
     session_dir.mkdir()
-    (session_dir / "current").symlink_to(bundle_dir, target_is_directory=True)
+    # Session inspection accepts a current bundle directory as well as a
+    # symlink. Keep general session tests usable without symlink privileges;
+    # dedicated symlink safety tests create and verify actual symlinks.
+    shutil.copytree(bundle_dir, session_dir / "current")
     session = {
         "protocol_version": "preview-live/v1",
         "software": "shotcut",
@@ -795,6 +799,12 @@ class TestScriptStrategy:
 
 class TestAnalytics:
     """Tests for analytics.py — opt-out, event firing, event names."""
+
+    @pytest.fixture(autouse=True)
+    def isolated_home(self, tmp_path, monkeypatch):
+        # Cleared environments must not remove the home lookup or write to
+        # a developer's real home (Windows uses USERPROFILE, not HOME).
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
 
     def test_analytics_enabled_by_default(self):
         with patch.dict(os.environ, {}, clear=True):

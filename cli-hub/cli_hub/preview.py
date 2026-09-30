@@ -640,7 +640,7 @@ def render_session_text(session_ref: str) -> str:
 
 def _artifact_href(output_dir: Path, bundle_dir: Path, artifact_path: str) -> str:
     target = (bundle_dir / artifact_path).resolve()
-    return os.path.relpath(target, output_dir)
+    return Path(os.path.relpath(target, output_dir)).as_posix()
 
 
 def _render_artifact_card(output_dir: Path, bundle_dir: Path, artifact: Dict[str, Any]) -> str:

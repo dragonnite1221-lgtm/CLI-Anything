@@ -6,7 +6,7 @@ setup(
     name="cli-anything-hub",
     version="0.3.0",
     description="Package manager for CLI-Anything — browse, install, and manage 40+ agent-native CLI interfaces for GUI applications",
-    long_description=open("README.md").read(),
+    long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="HKUDS",
     author_email="hkuds@connect.hku.hk",

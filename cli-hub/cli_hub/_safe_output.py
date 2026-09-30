@@ -42,10 +42,9 @@ def safe_output_file(output_path: str) -> Path:
 
 # os.O_NOFOLLOW/O_DIRECTORY and os.open(dir_fd=...) don't exist on native
 # Windows (they do under WSL/Cygwin, where os.name == "posix"). Where
-# they're missing, fall back to an immediately-before-open check: not
-# atomic, so a narrower TOCTOU window remains on that platform
-# specifically, but it is still checked, and creating filesystem symlinks
-# on Windows normally requires elevated privileges or Developer Mode.
+# native Windows uses handle-relative NtCreateFile with reparse processing
+# disabled. The fallback below is only for other platforms lacking these
+# POSIX capabilities; an islink-before-open check is not atomic.
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 _O_DIRECTORY = getattr(os, "O_DIRECTORY", 0)
 _SUPPORTS_DIR_FD = bool(_NOFOLLOW and _O_DIRECTORY) and os.open in os.supports_dir_fd
@@ -92,15 +91,16 @@ def open_safe_output(path: Path) -> IO[str]:
     `safe_output_file`'s check and this open) is not covered: closing that
     fully would mean opening the directory once up front and holding it for
     the whole render, which would need a larger restructuring of
-    render_html/render_live_html than this fix takes on. That residual
-    window requires an attacker with concurrent write access to the
-    directory's *parent*, at which point they already have unrestricted
-    access to everything this process could ever write anyway. Where
-    dir_fd isn't supported at all (native Windows), falls back to an
-    O_NOFOLLOW (or, lacking even that, an immediately-before-open check) on
-    the full path, which still closes the original, narrower "symlink at
-    the leaf" race.
+    render_html/render_live_html than this fix takes on for POSIX systems.
+    Native Windows instead opens each component relative to a held native
+    directory handle with reparse processing disabled, rejects reparse
+    points and denies delete sharing. The verified leaf handle is truncated
+    only after validation; no pathname is reopened for writing.
     """
+    if os.name == 'nt':
+        from ._win_safe_output import open_windows_output
+        return open_windows_output(path)
+
     directory = os.path.dirname(os.fspath(path)) or "."
     name = os.path.basename(os.fspath(path))
 

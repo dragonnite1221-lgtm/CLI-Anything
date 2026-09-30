@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from cli_hub._atomic_json import write_json_atomically
 from cli_hub._command_policy import (
     RegistryCommandRejected,
     registry_command_argv,
@@ -20,16 +21,12 @@ INSTALLED_FILE = Path.home() / ".cli-hub" / "installed.json"
 
 def _load_installed():
     if INSTALLED_FILE.exists():
-        try:
-            return json.loads(INSTALLED_FILE.read_text())
-        except json.JSONDecodeError:
-            pass
+        return json.loads(INSTALLED_FILE.read_text())
     return {}
 
 
 def _save_installed(data):
-    INSTALLED_FILE.parent.mkdir(parents=True, exist_ok=True)
-    INSTALLED_FILE.write_text(json.dumps(data, indent=2))
+    write_json_atomically(INSTALLED_FILE, data)
 
 
 def _update_installed(name, entry):

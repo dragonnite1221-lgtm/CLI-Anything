@@ -66,6 +66,10 @@ def verify(handle, *, leaf=False):
 
 
 def open_root(anchor):
+    # Use the share-root form for UNC anchors; preserve C:\ style drive
+    # roots. This normalizes syntax only, not network filesystem semantics.
+    if anchor.startswith('\\\\'):
+        anchor = anchor.rstrip('\\')
     handle = kernel.CreateFileW(anchor, TRAVERSE | READ_ATTRIBUTES | SYNCHRONIZE,
         SHARE_READ_WRITE, None, 3, 0x02000000 | OPEN_REPARSE_POINT, None)
     if handle == ctypes.c_void_p(-1).value:
